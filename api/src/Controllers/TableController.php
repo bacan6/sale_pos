@@ -6,20 +6,23 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\TenantContext;
 use PDO;
 
 class TableController {
     public function index(): void {
+        $tenantId = TenantContext::id();
         $db = Database::getInstance()->pdo();
         $roomId = Request::query('room_category_id');
 
         $sql = 'SELECT t.*, rc.name as zone 
                 FROM tables t 
-                JOIN room_categories rc ON t.room_category_id = rc.id';
-        $values = [];
+                JOIN room_categories rc ON t.room_category_id = rc.id 
+                WHERE t.tenant_id = ?';
+        $values = [$tenantId];
 
         if ($roomId !== null) {
-            $sql .= ' WHERE t.room_category_id = ?';
+            $sql .= ' AND t.room_category_id = ?';
             $values[] = (int)$roomId;
         }
 
@@ -33,13 +36,14 @@ class TableController {
     }
 
     public function show(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $db = Database::getInstance()->pdo();
         $stmt = $db->prepare('SELECT t.*, rc.name as zone 
                               FROM tables t 
                               JOIN room_categories rc ON t.room_category_id = rc.id 
-                              WHERE t.id = ? LIMIT 1');
-        $stmt->execute([$id]);
+                              WHERE t.id = ? AND t.tenant_id = ? LIMIT 1');
+        $stmt->execute([$id, $tenantId]);
         $row = $stmt->fetch();
 
         if (!$row) {
@@ -50,6 +54,7 @@ class TableController {
     }
 
     public function store(): void {
+        $tenantId = TenantContext::id();
         $body = Request::body();
         $name = trim((string)($body['name'] ?? ''));
         $capacity = (int)($body['capacity'] ?? 4);
@@ -60,26 +65,27 @@ class TableController {
         }
 
         $db = Database::getInstance()->pdo();
-        $rcCheck = $db->prepare('SELECT id FROM room_categories WHERE id = ? LIMIT 1');
-        $rcCheck->execute([$roomCategoryId]);
+        $rcCheck = $db->prepare('SELECT id FROM room_categories WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $rcCheck->execute([$roomCategoryId, $tenantId]);
         if (!$rcCheck->fetch()) {
-            Response::error('Kategori ruangan tidak valid', 400);
+            Response::error('Kategori ruangan tidak valid untuk tenant ini', 400);
         }
 
-        $stmt = $db->prepare('INSERT INTO tables (name, capacity, room_category_id, status) VALUES (?, ?, ?, "available")');
-        $stmt->execute([$name, $capacity, $roomCategoryId]);
+        $stmt = $db->prepare('INSERT INTO tables (tenant_id, name, capacity, room_category_id, status) VALUES (?, ?, ?, ?, "available")');
+        $stmt->execute([$tenantId, $name, $capacity, $roomCategoryId]);
         $id = (int)$db->lastInsertId();
 
         Response::success(['id' => $id, 'name' => $name], 'Meja berhasil ditambahkan', 201);
     }
 
     public function update(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $body = Request::body();
         $db = Database::getInstance()->pdo();
 
-        $check = $db->prepare('SELECT id FROM tables WHERE id = ? LIMIT 1');
-        $check->execute([$id]);
+        $check = $db->prepare('SELECT id FROM tables WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $check->execute([$id, $tenantId]);
         if (!$check->fetch()) {
             Response::error('Meja tidak ditemukan', 404);
         }
@@ -99,8 +105,8 @@ class TableController {
 
         if (isset($body['room_category_id'])) {
             $rcId = (int)$body['room_category_id'];
-            $rcCheck = $db->prepare('SELECT id FROM room_categories WHERE id = ? LIMIT 1');
-            $rcCheck->execute([$rcId]);
+            $rcCheck = $db->prepare('SELECT id FROM room_categories WHERE id = ? AND tenant_id = ? LIMIT 1');
+            $rcCheck->execute([$rcId, $tenantId]);
             if (!$rcCheck->fetch()) Response::error('Kategori ruangan tidak valid', 400);
             $fields[] = '`room_category_id` = ?';
             $values[] = $rcId;
@@ -136,7 +142,8 @@ class TableController {
         }
 
         $values[] = $id;
-        $sql = 'UPDATE tables SET ' . implode(', ', $fields) . ' WHERE id = ?';
+        $values[] = $tenantId;
+        $sql = 'UPDATE tables SET ' . implode(', ', $fields) . ' WHERE id = ? AND tenant_id = ?';
         $stmt = $db->prepare($sql);
         $stmt->execute($values);
 
@@ -144,11 +151,12 @@ class TableController {
     }
 
     public function destroy(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $db = Database::getInstance()->pdo();
 
-        $stmt = $db->prepare('DELETE FROM tables WHERE id = ?');
-        $stmt->execute([$id]);
+        $stmt = $db->prepare('DELETE FROM tables WHERE id = ? AND tenant_id = ?');
+        $stmt->execute([$id, $tenantId]);
 
         if ($stmt->rowCount() === 0) {
             Response::error('Meja tidak ditemukan', 404);

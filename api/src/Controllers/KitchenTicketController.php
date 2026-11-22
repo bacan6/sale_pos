@@ -6,19 +6,21 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\TenantContext;
 use PDO;
 use Exception;
 
 class KitchenTicketController {
     public function index(): void {
+        $tenantId = TenantContext::id();
         $db = Database::getInstance()->pdo();
         $status = Request::query('status');
 
-        $sql = 'SELECT * FROM kitchen_tickets';
-        $values = [];
+        $sql = 'SELECT * FROM kitchen_tickets WHERE tenant_id = ?';
+        $values = [$tenantId];
 
         if ($status !== null && $status !== 'all') {
-            $sql .= ' WHERE status = ?';
+            $sql .= ' AND status = ?';
             $values[] = $status;
         }
 
@@ -45,6 +47,7 @@ class KitchenTicketController {
     }
 
     public function store(): void {
+        $tenantId = TenantContext::id();
         $body = Request::body();
         $orderId = isset($body['order_id']) ? (int)$body['order_id'] : null;
         $orderNumber = trim((string)($body['order_number'] ?? ''));
@@ -62,9 +65,9 @@ class KitchenTicketController {
         $db->beginTransaction();
 
         try {
-            $stmt = $db->prepare('INSERT INTO kitchen_tickets (order_id, order_number, table_name, type, waiter_name, status, notes) 
-                                  VALUES (?, ?, ?, ?, ?, "queued", ?)');
-            $stmt->execute([$orderId, $orderNumber, $tableName, $type, $waiterName, $notes ?: null]);
+            $stmt = $db->prepare('INSERT INTO kitchen_tickets (tenant_id, order_id, order_number, table_name, type, waiter_name, status, notes) 
+                                  VALUES (?, ?, ?, ?, ?, ?, "queued", ?)');
+            $stmt->execute([$tenantId, $orderId, $orderNumber, $tableName, $type, $waiterName, $notes ?: null]);
             $ticketId = (int)$db->lastInsertId();
 
             $itemStmt = $db->prepare('INSERT INTO kitchen_ticket_items (kitchen_ticket_id, product_id, name, qty, notes, options_json) 
@@ -81,7 +84,8 @@ class KitchenTicketController {
             }
 
             if ($orderId !== null) {
-                $db->prepare('UPDATE orders SET status = "kitchen" WHERE id = ? AND status = "pending"')->execute([$orderId]);
+                $db->prepare('UPDATE orders SET status = "kitchen" WHERE id = ? AND tenant_id = ? AND status = "pending"')
+                   ->execute([$orderId, $tenantId]);
             }
 
             $db->commit();
@@ -93,6 +97,7 @@ class KitchenTicketController {
     }
 
     public function updateStatus(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $body = Request::body();
         $status = (string)($body['status'] ?? '');
@@ -103,8 +108,8 @@ class KitchenTicketController {
         }
 
         $db = Database::getInstance()->pdo();
-        $stmt = $db->prepare('UPDATE kitchen_tickets SET status = ? WHERE id = ?');
-        $stmt->execute([$status, $id]);
+        $stmt = $db->prepare('UPDATE kitchen_tickets SET status = ? WHERE id = ? AND tenant_id = ?');
+        $stmt->execute([$status, $id, $tenantId]);
 
         if ($stmt->rowCount() === 0) {
             Response::error('Tiket dapur tidak ditemukan', 404);

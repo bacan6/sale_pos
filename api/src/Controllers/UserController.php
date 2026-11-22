@@ -6,21 +6,30 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\TenantContext;
 use PDO;
 
 class UserController {
     public function index(): void {
+        $tenantId = TenantContext::id();
         $db = Database::getInstance()->pdo();
-        $stmt = $db->query('SELECT id, username, full_name, role, is_active, created_at, updated_at FROM users ORDER BY id ASC');
+        $stmt = $db->prepare('SELECT id, username, full_name, role, is_active, created_at, updated_at 
+                              FROM users 
+                              WHERE tenant_id = ? 
+                              ORDER BY id ASC');
+        $stmt->execute([$tenantId]);
         $data = $stmt->fetchAll();
         Response::success($data);
     }
 
     public function show(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $db = Database::getInstance()->pdo();
-        $stmt = $db->prepare('SELECT id, username, full_name, role, is_active, created_at, updated_at FROM users WHERE id = ? LIMIT 1');
-        $stmt->execute([$id]);
+        $stmt = $db->prepare('SELECT id, username, full_name, role, is_active, created_at, updated_at 
+                              FROM users 
+                              WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $stmt->execute([$id, $tenantId]);
         $row = $stmt->fetch();
 
         if (!$row) {
@@ -31,6 +40,7 @@ class UserController {
     }
 
     public function store(): void {
+        $tenantId = TenantContext::id();
         $body = Request::body();
         $username = trim((string)($body['username'] ?? ''));
         $password = (string)($body['password'] ?? '');
@@ -48,27 +58,28 @@ class UserController {
         }
 
         $db = Database::getInstance()->pdo();
-        $check = $db->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
-        $check->execute([$username]);
+        $check = $db->prepare('SELECT id FROM users WHERE username = ? AND tenant_id = ? LIMIT 1');
+        $check->execute([$username, $tenantId]);
         if ($check->fetch()) {
-            Response::error('Username sudah digunakan', 409);
+            Response::error('Username sudah digunakan pada tenant ini', 409);
         }
 
         $hash = password_hash($password, PASSWORD_BCRYPT);
-        $stmt = $db->prepare('INSERT INTO users (username, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$username, $hash, $fullName, $role, $isActive]);
+        $stmt = $db->prepare('INSERT INTO users (tenant_id, username, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$tenantId, $username, $hash, $fullName, $role, $isActive]);
         $id = (int)$db->lastInsertId();
 
         Response::success(['id' => $id, 'username' => $username, 'role' => $role], 'Pengguna berhasil didaftarkan', 201);
     }
 
     public function update(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $body = Request::body();
         $db = Database::getInstance()->pdo();
 
-        $check = $db->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
-        $check->execute([$id]);
+        $check = $db->prepare('SELECT id FROM users WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $check->execute([$id, $tenantId]);
         if (!$check->fetch()) {
             Response::error('Pengguna tidak ditemukan', 404);
         }
@@ -104,7 +115,8 @@ class UserController {
         }
 
         $values[] = $id;
-        $sql = 'UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?';
+        $values[] = $tenantId;
+        $sql = 'UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ? AND tenant_id = ?';
         $stmt = $db->prepare($sql);
         $stmt->execute($values);
 

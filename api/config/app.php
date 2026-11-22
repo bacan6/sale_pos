@@ -17,4 +17,14 @@ return [
     'sync' => [
         'interval_minutes' => 5,
     ],
+    'saas' => [
+        'platform_secret' => getenv('PLATFORM_SECRET') ?: 'master_super_secret_key_889922',
+        'default_plan' => 'starter',
+        'plans' => [
+            'free' => ['max_devices' => 1, 'name' => 'Free Trial Plan'],
+            'starter' => ['max_devices' => 3, 'name' => 'Starter Plan'],
+            'pro' => ['max_devices' => 10, 'name' => 'Pro Plan'],
+            'enterprise' => ['max_devices' => 99, 'name' => 'Enterprise Plan'],
+        ],
+    ],
 ];

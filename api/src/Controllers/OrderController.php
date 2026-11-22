@@ -6,11 +6,13 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\TenantContext;
 use PDO;
 use Exception;
 
 class OrderController {
     public function index(): void {
+        $tenantId = TenantContext::id();
         $db = Database::getInstance()->pdo();
         $status = Request::query('status');
         $tableId = Request::query('table_id');
@@ -19,27 +21,23 @@ class OrderController {
         $sql = 'SELECT o.*, t.name as table_name, u.full_name as user_full_name 
                 FROM orders o 
                 LEFT JOIN tables t ON o.table_id = t.id 
-                LEFT JOIN users u ON o.user_id = u.id';
-        $where = [];
-        $values = [];
+                LEFT JOIN users u ON o.user_id = u.id 
+                WHERE o.tenant_id = ?';
+        $values = [$tenantId];
 
         if ($status !== null) {
-            $where[] = 'o.status = ?';
+            $sql .= ' AND o.status = ?';
             $values[] = $status;
         }
 
         if ($tableId !== null) {
-            $where[] = 'o.table_id = ?';
+            $sql .= ' AND o.table_id = ?';
             $values[] = (int)$tableId;
         }
 
         if ($date !== null) {
-            $where[] = 'DATE(o.created_at) = ?';
+            $sql .= ' AND DATE(o.created_at) = ?';
             $values[] = $date;
-        }
-
-        if (!empty($where)) {
-            $sql .= ' WHERE ' . implode(' AND ', $where);
         }
 
         $sql .= ' ORDER BY o.id DESC LIMIT 100';
@@ -52,6 +50,7 @@ class OrderController {
     }
 
     public function show(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $db = Database::getInstance()->pdo();
 
@@ -59,8 +58,8 @@ class OrderController {
                               FROM orders o 
                               LEFT JOIN tables t ON o.table_id = t.id 
                               LEFT JOIN users u ON o.user_id = u.id 
-                              WHERE o.id = ? LIMIT 1');
-        $stmt->execute([$id]);
+                              WHERE o.id = ? AND o.tenant_id = ? LIMIT 1');
+        $stmt->execute([$id, $tenantId]);
         $order = $stmt->fetch();
 
         if (!$order) {
@@ -84,6 +83,7 @@ class OrderController {
     }
 
     public function store(): void {
+        $tenantId = TenantContext::id();
         $body = Request::body();
         $orderNumber = trim((string)($body['order_number'] ?? ''));
         $tableId = isset($body['table_id']) && $body['table_id'] !== null ? (int)$body['table_id'] : null;
@@ -119,12 +119,12 @@ class OrderController {
                     throw new Exception('Data item produk atau jumlah tidak valid');
                 }
 
-                $pStmt = $db->prepare('SELECT name, price, stock FROM products WHERE id = ? FOR UPDATE');
-                $pStmt->execute([$productId]);
+                $pStmt = $db->prepare('SELECT name, price, stock FROM products WHERE id = ? AND tenant_id = ? FOR UPDATE');
+                $pStmt->execute([$productId, $tenantId]);
                 $prod = $pStmt->fetch();
 
                 if (!$prod) {
-                    throw new Exception("Produk ID {$productId} tidak ditemukan");
+                    throw new Exception("Produk ID {$productId} tidak ditemukan untuk tenant ini");
                 }
 
                 $unitPrice = (int)$prod['price'];
@@ -141,8 +141,8 @@ class OrderController {
                     'selected_options_json' => $optionsJson,
                 ];
 
-                $stockUpdate = $db->prepare('UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ?');
-                $stockUpdate->execute([$qty, $productId]);
+                $stockUpdate = $db->prepare('UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ? AND tenant_id = ?');
+                $stockUpdate->execute([$qty, $productId, $tenantId]);
             }
 
             $discountAmount = (int)(($subtotal * $discountPercent) / 100);
@@ -151,9 +151,10 @@ class OrderController {
 
             $initialStatus = 'pending';
 
-            $orderStmt = $db->prepare('INSERT INTO orders (order_number, table_id, order_type, user_id, waiter_name, status, discount_percent, subtotal, tax_amount, total, device_id) 
-                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $orderStmt = $db->prepare('INSERT INTO orders (tenant_id, order_number, table_id, order_type, user_id, waiter_name, status, discount_percent, subtotal, tax_amount, total, device_id) 
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $orderStmt->execute([
+                $tenantId,
                 $orderNumber,
                 $tableId,
                 $orderType,
@@ -184,8 +185,8 @@ class OrderController {
             }
 
             if ($tableId !== null && $orderType === 'Dine-In') {
-                $tUpdate = $db->prepare('UPDATE tables SET status = "occupied", active_order_number = ?, active_order_total = ? WHERE id = ?');
-                $tUpdate->execute([$orderNumber, $total, $tableId]);
+                $tUpdate = $db->prepare('UPDATE tables SET status = "occupied", active_order_number = ?, active_order_total = ? WHERE id = ? AND tenant_id = ?');
+                $tUpdate->execute([$orderNumber, $total, $tableId, $tenantId]);
             }
 
             $db->commit();
@@ -204,6 +205,7 @@ class OrderController {
     }
 
     public function updateStatus(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $body = Request::body();
         $newStatus = (string)($body['status'] ?? '');
@@ -217,22 +219,22 @@ class OrderController {
         $db->beginTransaction();
 
         try {
-            $stmt = $db->prepare('SELECT id, table_id, order_number FROM orders WHERE id = ? FOR UPDATE');
-            $stmt->execute([$id]);
+            $stmt = $db->prepare('SELECT id, table_id, order_number FROM orders WHERE id = ? AND tenant_id = ? FOR UPDATE');
+            $stmt->execute([$id, $tenantId]);
             $order = $stmt->fetch();
 
             if (!$order) {
                 throw new Exception('Pesanan tidak ditemukan');
             }
 
-            $upd = $db->prepare('UPDATE orders SET status = ? WHERE id = ?');
-            $upd->execute([$newStatus, $id]);
+            $upd = $db->prepare('UPDATE orders SET status = ? WHERE id = ? AND tenant_id = ?');
+            $upd->execute([$newStatus, $id, $tenantId]);
 
             if ($order['table_id']) {
                 if ($newStatus === 'billing') {
-                    $db->prepare('UPDATE tables SET status = "billing" WHERE id = ?')->execute([$order['table_id']]);
+                    $db->prepare('UPDATE tables SET status = "billing" WHERE id = ? AND tenant_id = ?')->execute([$order['table_id'], $tenantId]);
                 } elseif ($newStatus === 'paid' || $newStatus === 'cancelled') {
-                    $db->prepare('UPDATE tables SET status = "available", active_order_number = NULL, active_order_total = 0 WHERE id = ?')->execute([$order['table_id']]);
+                    $db->prepare('UPDATE tables SET status = "available", active_order_number = NULL, active_order_total = 0 WHERE id = ? AND tenant_id = ?')->execute([$order['table_id'], $tenantId]);
                 }
             }
 

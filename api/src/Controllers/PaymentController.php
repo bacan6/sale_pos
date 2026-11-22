@@ -6,22 +6,27 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\TenantContext;
 use PDO;
 use Exception;
 
 class PaymentController {
     public function index(): void {
+        $tenantId = TenantContext::id();
         $db = Database::getInstance()->pdo();
-        $stmt = $db->query('SELECT p.*, o.order_number, u.full_name as cashier_name 
-                            FROM payments p 
-                            JOIN orders o ON p.order_id = o.id 
-                            LEFT JOIN users u ON p.user_id = u.id 
-                            ORDER BY p.id DESC LIMIT 100');
+        $stmt = $db->prepare('SELECT p.*, o.order_number, u.full_name as cashier_name 
+                              FROM payments p 
+                              JOIN orders o ON p.order_id = o.id 
+                              LEFT JOIN users u ON p.user_id = u.id 
+                              WHERE p.tenant_id = ? 
+                              ORDER BY p.id DESC LIMIT 100');
+        $stmt->execute([$tenantId]);
         $rows = $stmt->fetchAll();
         Response::success($rows);
     }
 
     public function store(): void {
+        $tenantId = TenantContext::id();
         $body = Request::body();
         $orderId = (int)($body['order_id'] ?? 0);
         $method = (string)($body['method'] ?? 'cash');
@@ -43,12 +48,12 @@ class PaymentController {
         $db->beginTransaction();
 
         try {
-            $stmt = $db->prepare('SELECT id, total, status, table_id FROM orders WHERE id = ? FOR UPDATE');
-            $stmt->execute([$orderId]);
+            $stmt = $db->prepare('SELECT id, total, status, table_id FROM orders WHERE id = ? AND tenant_id = ? FOR UPDATE');
+            $stmt->execute([$orderId, $tenantId]);
             $order = $stmt->fetch();
 
             if (!$order) {
-                throw new Exception('Pesanan tidak ditemukan');
+                throw new Exception('Pesanan tidak ditemukan untuk tenant ini');
             }
 
             if ($order['status'] === 'paid') {
@@ -62,9 +67,10 @@ class PaymentController {
 
             $change = $method === 'cash' ? max(0, $amountPaid - $total) : 0;
 
-            $payStmt = $db->prepare('INSERT INTO payments (order_id, method, total_amount, amount_paid, change_amount, reference_code, user_id, device_id) 
-                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $payStmt = $db->prepare('INSERT INTO payments (tenant_id, order_id, method, total_amount, amount_paid, change_amount, reference_code, user_id, device_id) 
+                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $payStmt->execute([
+                $tenantId,
                 $orderId,
                 $method,
                 $total,
@@ -76,12 +82,12 @@ class PaymentController {
             ]);
             $paymentId = (int)$db->lastInsertId();
 
-            $updOrder = $db->prepare('UPDATE orders SET status = "paid" WHERE id = ?');
-            $updOrder->execute([$orderId]);
+            $updOrder = $db->prepare('UPDATE orders SET status = "paid" WHERE id = ? AND tenant_id = ?');
+            $updOrder->execute([$orderId, $tenantId]);
 
             if ($order['table_id']) {
-                $db->prepare('UPDATE tables SET status = "available", active_order_number = NULL, active_order_total = 0 WHERE id = ?')
-                   ->execute([$order['table_id']]);
+                $db->prepare('UPDATE tables SET status = "available", active_order_number = NULL, active_order_total = 0 WHERE id = ? AND tenant_id = ?')
+                   ->execute([$order['table_id'], $tenantId]);
             }
 
             $db->commit();

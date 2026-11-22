@@ -6,31 +6,29 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\TenantContext;
 use PDO;
 
 class ProductController {
     public function index(): void {
+        $tenantId = TenantContext::id();
         $db = Database::getInstance()->pdo();
         $categoryId = Request::query('category_id');
         $availableOnly = Request::query('available_only');
 
         $sql = 'SELECT p.*, pc.name as category_name 
                 FROM products p 
-                JOIN product_categories pc ON p.category_id = pc.id';
-        $where = [];
-        $values = [];
+                JOIN product_categories pc ON p.category_id = pc.id 
+                WHERE p.tenant_id = ?';
+        $values = [$tenantId];
 
         if ($categoryId !== null) {
-            $where[] = 'p.category_id = ?';
+            $sql .= ' AND p.category_id = ?';
             $values[] = (int)$categoryId;
         }
 
         if ($availableOnly === '1') {
-            $where[] = 'p.is_available = 1';
-        }
-
-        if (!empty($where)) {
-            $sql .= ' WHERE ' . implode(' AND ', $where);
+            $sql .= ' AND p.is_available = 1';
         }
 
         $sql .= ' ORDER BY p.category_id ASC, p.id ASC';
@@ -48,13 +46,14 @@ class ProductController {
     }
 
     public function show(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $db = Database::getInstance()->pdo();
         $stmt = $db->prepare('SELECT p.*, pc.name as category_name 
                               FROM products p 
                               JOIN product_categories pc ON p.category_id = pc.id 
-                              WHERE p.id = ? LIMIT 1');
-        $stmt->execute([$id]);
+                              WHERE p.id = ? AND p.tenant_id = ? LIMIT 1');
+        $stmt->execute([$id, $tenantId]);
         $row = $stmt->fetch();
 
         if (!$row) {
@@ -68,6 +67,7 @@ class ProductController {
     }
 
     public function store(): void {
+        $tenantId = TenantContext::id();
         $body = Request::body();
         $code = trim((string)($body['code'] ?? ''));
         $name = trim((string)($body['name'] ?? ''));
@@ -86,33 +86,34 @@ class ProductController {
 
         $db = Database::getInstance()->pdo();
 
-        $catCheck = $db->prepare('SELECT id FROM product_categories WHERE id = ? LIMIT 1');
-        $catCheck->execute([$categoryId]);
+        $catCheck = $db->prepare('SELECT id FROM product_categories WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $catCheck->execute([$categoryId, $tenantId]);
         if (!$catCheck->fetch()) {
-            Response::error('Kategori produk tidak valid', 400);
+            Response::error('Kategori produk tidak valid untuk tenant ini', 400);
         }
 
-        $codeCheck = $db->prepare('SELECT id FROM products WHERE code = ? LIMIT 1');
-        $codeCheck->execute([$code]);
+        $codeCheck = $db->prepare('SELECT id FROM products WHERE code = ? AND tenant_id = ? LIMIT 1');
+        $codeCheck->execute([$code, $tenantId]);
         if ($codeCheck->fetch()) {
-            Response::error('Kode produk (SKU) sudah digunakan', 409);
+            Response::error('Kode produk (SKU) sudah digunakan pada tenant ini', 409);
         }
 
-        $stmt = $db->prepare('INSERT INTO products (code, name, category_id, price, cost, stock, is_available, image, description, options_json) 
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$code, $name, $categoryId, $price, $cost, $stock, $isAvailable, $image ?: null, $description ?: null, $options]);
+        $stmt = $db->prepare('INSERT INTO products (tenant_id, code, name, category_id, price, cost, stock, is_available, image, description, options_json) 
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$tenantId, $code, $name, $categoryId, $price, $cost, $stock, $isAvailable, $image ?: null, $description ?: null, $options]);
 
         $id = (int)$db->lastInsertId();
         Response::success(['id' => $id, 'code' => $code, 'name' => $name], 'Produk berhasil ditambahkan', 201);
     }
 
     public function update(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $body = Request::body();
         $db = Database::getInstance()->pdo();
 
-        $check = $db->prepare('SELECT id FROM products WHERE id = ? LIMIT 1');
-        $check->execute([$id]);
+        $check = $db->prepare('SELECT id FROM products WHERE id = ? AND tenant_id = ? LIMIT 1');
+        $check->execute([$id, $tenantId]);
         if (!$check->fetch()) {
             Response::error('Produk tidak ditemukan', 404);
         }
@@ -123,8 +124,8 @@ class ProductController {
         if (isset($body['code'])) {
             $code = trim((string)$body['code']);
             if ($code === '') Response::error('Kode produk tidak boleh kosong', 422);
-            $dup = $db->prepare('SELECT id FROM products WHERE code = ? AND id != ? LIMIT 1');
-            $dup->execute([$code, $id]);
+            $dup = $db->prepare('SELECT id FROM products WHERE code = ? AND id != ? AND tenant_id = ? LIMIT 1');
+            $dup->execute([$code, $id, $tenantId]);
             if ($dup->fetch()) Response::error('Kode produk sudah digunakan', 409);
             $fields[] = '`code` = ?';
             $values[] = $code;
@@ -139,8 +140,8 @@ class ProductController {
 
         if (isset($body['category_id'])) {
             $catId = (int)$body['category_id'];
-            $catCheck = $db->prepare('SELECT id FROM product_categories WHERE id = ? LIMIT 1');
-            $catCheck->execute([$catId]);
+            $catCheck = $db->prepare('SELECT id FROM product_categories WHERE id = ? AND tenant_id = ? LIMIT 1');
+            $catCheck->execute([$catId, $tenantId]);
             if (!$catCheck->fetch()) Response::error('Kategori produk tidak valid', 400);
             $fields[] = '`category_id` = ?';
             $values[] = $catId;
@@ -186,7 +187,8 @@ class ProductController {
         }
 
         $values[] = $id;
-        $sql = 'UPDATE products SET ' . implode(', ', $fields) . ' WHERE id = ?';
+        $values[] = $tenantId;
+        $sql = 'UPDATE products SET ' . implode(', ', $fields) . ' WHERE id = ? AND tenant_id = ?';
         $stmt = $db->prepare($sql);
         $stmt->execute($values);
 
@@ -194,11 +196,12 @@ class ProductController {
     }
 
     public function destroy(array $params): void {
+        $tenantId = TenantContext::id();
         $id = (int)($params['id'] ?? 0);
         $db = Database::getInstance()->pdo();
 
-        $stmt = $db->prepare('DELETE FROM products WHERE id = ?');
-        $stmt->execute([$id]);
+        $stmt = $db->prepare('DELETE FROM products WHERE id = ? AND tenant_id = ?');
+        $stmt->execute([$id, $tenantId]);
 
         if ($stmt->rowCount() === 0) {
             Response::error('Produk tidak ditemukan', 404);
