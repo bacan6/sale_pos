@@ -49,4 +49,12 @@ class Request {
     public static function query(string $key, ?string $default = null): ?string {
         return isset($_GET[$key]) ? (string)$_GET[$key] : $default;
     }
+
+    public static function setBodyForTesting(?array $body): void {
+        self::$cachedBody = $body;
+    }
+
+    public static function reset(): void {
+        self::$cachedBody = null;
+    }
 }

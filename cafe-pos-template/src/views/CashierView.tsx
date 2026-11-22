@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { 
   Search, Plus, Minus, Trash2, CreditCard, Banknote, QrCode, 
   Printer, Percent, ShoppingBag, Coffee, X,
-  Clock, CheckCircle, FileText, Send
+  Clock, CheckCircle, FileText, Send, Bed
 } from 'lucide-react';
+import { getStoredTenant } from '../services/api';
 import type { Product, TableItem } from '../data/mockData';
 import { INITIAL_PRODUCTS, CATEGORIES, formatCurrency, INITIAL_TABLES } from '../data/mockData';
 
@@ -91,7 +92,10 @@ export const CashierView: React.FC = () => {
   const [showPayModal, setShowPayModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [isProformaReceipt, setIsProformaReceipt] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'card'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'card' | 'room_charge'>('cash');
+  const [roomNumberCharge, setRoomNumberCharge] = useState<string>('101');
+  const tenantInfo = getStoredTenant();
+  const hasHotelModule = tenantInfo?.modules === 'combo' || tenantInfo?.modules === 'hotel' || !tenantInfo?.modules;
   const [cashTendered, setCashTendered] = useState<number>(100000);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [kitchenSentToast, setKitchenSentToast] = useState(false);
@@ -599,43 +603,75 @@ export const CashierView: React.FC = () => {
               <p className="text-2xl font-black text-amber-800 mt-0.5">{formatCurrency(total)}</p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 mb-3.5">
+            <div className={`grid ${hasHotelModule ? 'grid-cols-4' : 'grid-cols-3'} gap-2 mb-3.5`}>
               <button
                 onClick={() => setPaymentMethod('cash')}
-                className={`p-2.5 rounded-xl flex flex-col items-center gap-1 border text-xs font-bold transition-all ${
+                className={`p-2 rounded-xl flex flex-col items-center gap-1 border text-xs font-bold transition-all ${
                   paymentMethod === 'cash' 
                     ? 'border-amber-700 bg-amber-50 text-amber-800 ring-2 ring-amber-700/20' 
                     : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
                 }`}
               >
                 <Banknote className="w-4 h-4" />
-                Tunai (Cash)
+                Tunai
               </button>
 
               <button
                 onClick={() => setPaymentMethod('qris')}
-                className={`p-2.5 rounded-xl flex flex-col items-center gap-1 border text-xs font-bold transition-all ${
+                className={`p-2 rounded-xl flex flex-col items-center gap-1 border text-xs font-bold transition-all ${
                   paymentMethod === 'qris' 
                     ? 'border-amber-700 bg-amber-50 text-amber-800 ring-2 ring-amber-700/20' 
                     : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
                 }`}
               >
                 <QrCode className="w-4 h-4" />
-                QRIS / E-Wallet
+                QRIS
               </button>
 
               <button
                 onClick={() => setPaymentMethod('card')}
-                className={`p-2.5 rounded-xl flex flex-col items-center gap-1 border text-xs font-bold transition-all ${
+                className={`p-2 rounded-xl flex flex-col items-center gap-1 border text-xs font-bold transition-all ${
                   paymentMethod === 'card' 
                     ? 'border-amber-700 bg-amber-50 text-amber-800 ring-2 ring-amber-700/20' 
                     : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
                 }`}
               >
                 <CreditCard className="w-4 h-4" />
-                EDC / Kartu
+                Kartu / EDC
               </button>
+
+              {hasHotelModule && (
+                <button
+                  onClick={() => setPaymentMethod('room_charge')}
+                  className={`p-2 rounded-xl flex flex-col items-center gap-1 border text-xs font-bold transition-all ${
+                    paymentMethod === 'room_charge' 
+                      ? 'border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-600/20' 
+                      : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                  }`}
+                >
+                  <Bed className="w-4 h-4 text-blue-600" />
+                  Tagih Kamar
+                </button>
+              )}
             </div>
+
+            {paymentMethod === 'room_charge' && (
+              <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200 mb-3.5 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-blue-900 font-bold">Nomor Kamar Hotel:</span>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 101"
+                    value={roomNumberCharge}
+                    onChange={(e) => setRoomNumberCharge(e.target.value)}
+                    className="w-28 text-center bg-white border border-blue-300 rounded-lg px-2 py-1 font-black text-blue-900 outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-blue-700 leading-tight">
+                  ℹ️ Tagihan sebesar <strong>{formatCurrency(total)}</strong> otomatis dibukukan ke Folio Kamar #{roomNumberCharge} untuk pelunasan saat tamu Check-Out.
+                </p>
+              </div>
+            )}
 
             {paymentMethod === 'cash' && (
               <div className="space-y-2.5 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-100 mb-3.5">

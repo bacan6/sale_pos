@@ -45,12 +45,14 @@ class AuthController {
             $tenantId = (int)$db->lastInsertId();
 
             $config = require __DIR__ . '/../../config/app.php';
-            $defaultPlan = (string)($config['saas']['default_plan'] ?? 'starter');
-            $maxDevices = (int)($config['saas']['plans'][$defaultPlan]['max_devices'] ?? 3);
+            $defaultPlan = (string)($body['plan'] ?? $config['saas']['default_plan'] ?? 'combo_pro');
+            $planConfig = $config['saas']['plans'][$defaultPlan] ?? reset($config['saas']['plans']);
+            $maxDevices = (int)($planConfig['max_devices'] ?? 3);
+            $modules = (string)($planConfig['modules'] ?? 'combo');
 
-            $stmtSub = $db->prepare('INSERT INTO subscriptions (tenant_id, plan, max_devices, status, starts_at, expires_at) 
-                                     VALUES (?, ?, ?, "active", NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY))');
-            $stmtSub->execute([$tenantId, $defaultPlan, $maxDevices]);
+            $stmtSub = $db->prepare('INSERT INTO subscriptions (tenant_id, plan, modules, max_devices, status, starts_at, expires_at) 
+                                     VALUES (?, ?, ?, ?, "active", NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY))');
+            $stmtSub->execute([$tenantId, $defaultPlan, $modules, $maxDevices]);
 
             $passHash = password_hash($password, PASSWORD_BCRYPT);
             $stmtUser = $db->prepare('INSERT INTO users (tenant_id, username, password_hash, full_name, role, is_active) 
@@ -58,13 +60,21 @@ class AuthController {
             $stmtUser->execute([$tenantId, $username, $passHash, "Owner {$name}"]);
             $userId = (int)$db->lastInsertId();
 
-            // Default categories
+            // Default categories for POS
             $db->prepare('INSERT INTO product_categories (tenant_id, name, code, sort_order) VALUES (?, "Coffee", "CAT-CF", 1), (?, "Non-Coffee", "CAT-NC", 2), (?, "Food & Snacks", "CAT-FD", 3)')
                ->execute([$tenantId, $tenantId, $tenantId]);
 
-            // Default room categories
+            // Default room categories for POS tables
             $db->prepare('INSERT INTO room_categories (tenant_id, name, description, sort_order) VALUES (?, "Indoor", "Area Dalam Ruangan AC", 1), (?, "Outdoor", "Area Luar Ruangan", 2)')
                ->execute([$tenantId, $tenantId]);
+
+            // Default room types for Hotel PMS if module active
+            if ($modules === 'hotel' || $modules === 'combo') {
+                $db->prepare('INSERT INTO hotel_room_types (tenant_id, name, code, base_price, max_adults, max_children, amenities_json, description) VALUES 
+                    (?, "Standard Room", "STD", 300000, 2, 1, \'["AC", "WiFi", "TV"]\', "Kamar standar nyaman"),
+                    (?, "Deluxe Room", "DLX", 500000, 2, 1, \'["AC", "WiFi", "TV", "Mini Fridge"]\', "Kamar luas dengan fasilitas lengkap")')
+                   ->execute([$tenantId, $tenantId]);
+            }
 
             // Default Primary POS Device
             $defaultDeviceId = 'POS-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $slug), 0, 4)) . '-' . $tenantId . '-' . strtoupper(substr(bin2hex(random_bytes(2)), 0, 3));
@@ -124,7 +134,7 @@ class AuthController {
 
         $stmt = $db->prepare('SELECT u.id, u.tenant_id, u.username, u.password_hash, u.full_name, u.role, u.is_active,
                                      t.name as tenant_name, t.slug as tenant_slug, t.status as tenant_status,
-                                     s.plan, s.max_devices, s.expires_at, s.status as sub_status 
+                                     s.plan, s.modules, s.max_devices, s.expires_at, s.status as sub_status 
                               FROM users u 
                               JOIN tenants t ON u.tenant_id = t.id 
                               LEFT JOIN subscriptions s ON t.id = s.tenant_id 
@@ -163,7 +173,8 @@ class AuthController {
                 'name' => (string)$user['tenant_name'],
                 'slug' => (string)$user['tenant_slug'],
                 'status' => (string)$user['tenant_status'],
-                'plan' => (string)($user['plan'] ?? 'starter'),
+                'plan' => (string)($user['plan'] ?? 'combo_pro'),
+                'modules' => (string)($user['modules'] ?? 'combo'),
                 'max_devices' => (int)($user['max_devices'] ?? 3),
                 'subscription_expires_at' => $user['expires_at'],
             ],

@@ -14,7 +14,7 @@ class TenantMiddleware {
             $slug = Request::header('X-Tenant-Slug');
             if ($slug) {
                 $db = Database::getInstance()->pdo();
-                $stmt = $db->prepare('SELECT t.*, s.plan, s.max_devices, s.status as sub_status, s.expires_at 
+                $stmt = $db->prepare('SELECT t.*, s.plan, s.modules, s.max_devices, s.status as sub_status, s.expires_at 
                                       FROM tenants t 
                                       LEFT JOIN subscriptions s ON t.id = s.tenant_id 
                                       WHERE t.slug = ? LIMIT 1');
@@ -27,6 +27,7 @@ class TenantMiddleware {
                         'slug' => (string)$tenant['slug'],
                         'status' => (string)$tenant['status'],
                         'plan' => (string)($tenant['plan'] ?? 'free'),
+                        'modules' => (string)($tenant['modules'] ?? 'pos'),
                         'max_devices' => (int)($tenant['max_devices'] ?? 1),
                         'expires_at' => $tenant['expires_at'],
                         'sub_status' => (string)($tenant['sub_status'] ?? 'active'),

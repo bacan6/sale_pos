@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CreditCard, Smartphone, UserCheck, Utensils, 
-  Layers, Table, Coffee, ShieldCheck, LogOut
+  Layers, Table, Coffee, ShieldCheck, LogOut,
+  Building2, Grid, Sparkles, Moon
 } from 'lucide-react';
 import type { TenantInfo, UserInfo } from '../types/auth';
 
-export type ActiveTab = 'cashier' | 'customer' | 'waitstaff' | 'kitchen' | 'products' | 'tables' | 'saas_billing';
+export type ActiveTab = 
+  | 'cashier' | 'customer' | 'waitstaff' | 'kitchen' | 'products' | 'tables'
+  | 'hotel_rack' | 'hotel_front_desk' | 'hotel_folio' | 'hotel_housekeeping' | 'hotel_night_audit' | 'hotel_rooms'
+  | 'saas_billing';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -16,28 +20,62 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenant, user, onLogout }) => {
-  const navItems = [
+  const tenantModules = (tenant?.modules || 'combo').toLowerCase();
+  const hasPos = tenantModules === 'combo' || tenantModules === 'pos' || tenantModules === 'all';
+  const hasHotel = tenantModules === 'combo' || tenantModules === 'hotel' || tenantModules === 'all';
+
+  const [businessMode, setBusinessMode] = useState<'pos' | 'hotel'>(hasHotel && !hasPos ? 'hotel' : 'pos');
+
+  useEffect(() => {
+    if (activeTab.startsWith('hotel_')) {
+      setBusinessMode('hotel');
+    } else if (['cashier', 'customer', 'waitstaff', 'kitchen', 'products', 'tables'].includes(activeTab)) {
+      setBusinessMode('pos');
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!hasPos && hasHotel && businessMode !== 'hotel') {
+      setBusinessMode('hotel');
+      setActiveTab('hotel_rack');
+    } else if (!hasHotel && hasPos && businessMode !== 'pos') {
+      setBusinessMode('pos');
+      setActiveTab('cashier');
+    }
+  }, [hasPos, hasHotel]);
+
+  const posNavItems = [
     { id: 'cashier', label: 'Kasir', desc: 'Point of Sale', icon: CreditCard },
     { id: 'customer', label: 'Menu Pelanggan', desc: 'Self-Order Kiosk', icon: Smartphone },
     { id: 'waitstaff', label: 'Pramuniaga', desc: 'Waitstaff Order', icon: UserCheck },
     { id: 'kitchen', label: 'Struk & Kitchen', desc: 'Dapur (KDS)', icon: Utensils },
     { id: 'products', label: 'Kelola Produk', desc: 'Katalog & Harga', icon: Layers },
     { id: 'tables', label: 'Kelola Meja', desc: 'Denah & Status', icon: Table },
-    { id: 'saas_billing', label: 'Langganan SaaS', desc: 'Billing & Lifecycle', icon: ShieldCheck },
   ];
 
+  const hotelNavItems = [
+    { id: 'hotel_rack', label: 'Denah Kamar', desc: 'Room Rack & Status', icon: Grid },
+    { id: 'hotel_front_desk', label: 'Front Desk', desc: 'Reservasi & Tamu', icon: UserCheck },
+    { id: 'hotel_folio', label: 'Folio & Kasir', desc: 'Tagihan & Settle', icon: CreditCard },
+    { id: 'hotel_housekeeping', label: 'Housekeeping', desc: 'Kebersihan & Tugas', icon: Sparkles },
+    { id: 'hotel_night_audit', label: 'Night Audit', desc: 'Okupansi & Tutup Buku', icon: Moon },
+    { id: 'hotel_rooms', label: 'Kelola Kamar', desc: 'Tipe & Master Unit', icon: Layers },
+  ];
+
+  const activeNavItems = businessMode === 'hotel' ? hotelNavItems : posNavItems;
   const tenantStatus = tenant?.status || 'active';
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-neutral-900 text-white border-r border-neutral-800 p-4 justify-between shrink-0">
       <div>
-        <div className="flex items-center gap-3 px-2 py-3 mb-4 border-b border-neutral-800">
+        {/* Brand & Tenant Info */}
+        <div className="flex items-center gap-3 px-2 py-3 mb-3 border-b border-neutral-800">
           <div className="w-10 h-10 rounded-2xl bg-amber-600 flex items-center justify-center font-bold text-white shadow-md shrink-0">
-            <Coffee className="w-5 h-5" />
+            {businessMode === 'hotel' ? <Building2 className="w-5 h-5" /> : <Coffee className="w-5 h-5" />}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-black text-xs tracking-tight text-white truncate">
-              {tenant?.name || 'KOPI SENJA'}
+            <h1 className="font-black text-xs tracking-tight text-white truncate uppercase">
+              {tenant?.name || 'SaaS Business'}
             </h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
@@ -49,14 +87,59 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
                 {tenantStatus}
               </span>
               <span className="text-[10px] text-neutral-400 font-semibold truncate capitalize">
-                {tenant?.plan || 'Starter'}
+                {tenant?.plan ? tenant.plan.replace('_', ' ') : 'Combo Pro'}
               </span>
             </div>
           </div>
         </div>
 
+        {/* Business Switcher Segmented Control (Hotel vs POS) */}
+        {hasPos && hasHotel && (
+          <div className="mb-3 p-1 bg-neutral-800/80 rounded-xl flex items-center text-xs font-bold border border-neutral-700/60">
+            <button
+              onClick={() => {
+                setBusinessMode('pos');
+                setActiveTab('cashier');
+              }}
+              className={`flex-1 py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                businessMode === 'pos'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Coffee className="w-3.5 h-3.5" />
+              <span>Cafe POS</span>
+            </button>
+            <button
+              onClick={() => {
+                setBusinessMode('hotel');
+                setActiveTab('hotel_rack');
+              }}
+              className={`flex-1 py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                businessMode === 'hotel'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Hotel PMS</span>
+            </button>
+          </div>
+        )}
+
+        {/* Module Label */}
+        <div className="px-2 mb-1.5 flex items-center justify-between">
+          <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500">
+            {businessMode === 'hotel' ? 'MODUL HOTEL & PENGINAPAN' : 'MODUL CAFE & RESTO POS'}
+          </span>
+          <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.2 rounded">
+            {businessMode === 'hotel' ? 'PMS V1' : 'POS V1'}
+          </span>
+        </div>
+
+        {/* Navigation list */}
         <nav className="space-y-1">
-          {navItems.map(item => {
+          {activeNavItems.map(item => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
@@ -79,6 +162,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
               </button>
             );
           })}
+
+          {/* Shared SaaS Subscription Link */}
+          <div className="pt-2 border-t border-neutral-800 mt-2">
+            <button
+              onClick={() => setActiveTab('saas_billing')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all group ${
+                activeTab === 'saas_billing'
+                  ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-600/30'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60 font-medium'
+              }`}
+            >
+              <ShieldCheck className={`w-4 h-4 ${activeTab === 'saas_billing' ? 'text-white' : 'text-neutral-400'}`} />
+              <div className="flex-1 min-w-0">
+                <span className="text-xs block leading-tight">Langganan SaaS</span>
+                <span className={`text-[9px] block mt-0.5 truncate ${activeTab === 'saas_billing' ? 'text-amber-100' : 'text-neutral-500'}`}>
+                  Paket POS, Hotel & Combo
+                </span>
+              </div>
+            </button>
+          </div>
         </nav>
       </div>
 

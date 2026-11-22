@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
-  CreditCard, Smartphone, UserCheck, Utensils, 
-  Layers, Table, ShieldCheck 
+  CreditCard, UserCheck, Utensils, 
+  Layers, Table, ShieldCheck, Grid, Sparkles, Moon
 } from 'lucide-react';
 import type { ActiveTab } from './Sidebar';
 
@@ -11,15 +11,27 @@ interface MobileNavProps {
 }
 
 export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, setActiveTab }) => {
-  const navItems = [
+  const isHotel = activeTab.startsWith('hotel_');
+
+  const posNavItems = [
     { id: 'cashier', label: 'Kasir', icon: CreditCard },
     { id: 'waitstaff', label: 'Waiter', icon: UserCheck },
     { id: 'kitchen', label: 'Dapur', icon: Utensils },
     { id: 'products', label: 'Menu', icon: Layers },
     { id: 'tables', label: 'Meja', icon: Table },
-    { id: 'customer', label: 'Kiosk', icon: Smartphone },
     { id: 'saas_billing', label: 'SaaS', icon: ShieldCheck },
   ];
+
+  const hotelNavItems = [
+    { id: 'hotel_rack', label: 'Kamar', icon: Grid },
+    { id: 'hotel_front_desk', label: 'Front Desk', icon: UserCheck },
+    { id: 'hotel_folio', label: 'Folio', icon: CreditCard },
+    { id: 'hotel_housekeeping', label: 'Cleaning', icon: Sparkles },
+    { id: 'hotel_night_audit', label: 'Audit', icon: Moon },
+    { id: 'saas_billing', label: 'SaaS', icon: ShieldCheck },
+  ];
+
+  const navItems = isHotel ? hotelNavItems : posNavItems;
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-neutral-900 border-t border-neutral-800 flex items-center justify-around px-1 z-40 shadow-2xl">

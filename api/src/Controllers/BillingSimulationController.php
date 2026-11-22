@@ -38,6 +38,34 @@ class BillingSimulationController {
         $this->processStatusChange($tenantId, $status);
     }
 
+    public function simulatePlanChange(): void {
+        $tenantId = TenantContext::id();
+        $body = Request::body();
+        $newPlan = (string)($body['plan'] ?? 'combo_pro');
+
+        $config = require __DIR__ . '/../../config/app.php';
+        $plans = $config['saas']['plans'] ?? [];
+
+        if (!isset($plans[$newPlan])) {
+            Response::error('Paket tidak valid', 422);
+        }
+
+        $planConfig = $plans[$newPlan];
+        $modules = (string)($planConfig['modules'] ?? 'pos');
+        $maxDevices = (int)($planConfig['max_devices'] ?? 3);
+
+        $db = Database::getInstance()->pdo();
+        $db->prepare('UPDATE subscriptions SET plan = ?, modules = ?, max_devices = ? WHERE tenant_id = ?')
+           ->execute([$newPlan, $modules, $maxDevices, $tenantId]);
+
+        Response::success([
+            'tenant_id' => $tenantId,
+            'plan' => $newPlan,
+            'modules' => $modules,
+            'max_devices' => $maxDevices,
+        ], "Paket langganan berhasil diubah ke {$planConfig['name']}");
+    }
+
     public function invoices(): void {
         $tenantId = TenantContext::id();
         $db = Database::getInstance()->pdo();

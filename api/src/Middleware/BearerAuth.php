@@ -24,7 +24,7 @@ class BearerAuth {
         $stmt = $db->prepare('SELECT pat.id as token_id, pat.expires_at,
                                      u.id as user_id, u.username, u.full_name, u.role, u.is_active as user_active,
                                      t.id as tenant_id, t.name as tenant_name, t.slug as tenant_slug, t.status as tenant_status,
-                                     s.plan, s.max_devices, s.expires_at as sub_expires_at, s.status as sub_status 
+                                     s.plan, s.modules, s.max_devices, s.expires_at as sub_expires_at, s.status as sub_status 
                               FROM personal_access_tokens pat 
                               JOIN users u ON pat.user_id = u.id 
                               JOIN tenants t ON pat.tenant_id = t.id 
@@ -62,6 +62,7 @@ class BearerAuth {
             'slug' => (string)$row['tenant_slug'],
             'status' => (string)$row['tenant_status'],
             'plan' => (string)($row['plan'] ?? 'starter'),
+            'modules' => (string)($row['modules'] ?? 'pos'),
             'max_devices' => (int)($row['max_devices'] ?? 3),
             'expires_at' => $row['sub_expires_at'],
             'sub_status' => (string)($row['sub_status'] ?? 'active'),

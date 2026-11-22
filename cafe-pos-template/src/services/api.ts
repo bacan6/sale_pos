@@ -40,7 +40,7 @@ export const setStoredUser = (user: UserInfo | null) => {
   }
 };
 
-async function fetchApi(path: string, options: RequestInit = {}) {
+export async function fetchApi(path: string, options: RequestInit = {}) {
   const token = getStoredToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -122,6 +122,13 @@ export const billingApi = {
     return fetchApi('/v1/billing/simulate-status', {
       method: 'POST',
       body: JSON.stringify({ status }),
+    });
+  },
+
+  async simulatePlanChange(plan: string) {
+    return fetchApi('/v1/billing/simulate-plan', {
+      method: 'POST',
+      body: JSON.stringify({ plan }),
     });
   },
 

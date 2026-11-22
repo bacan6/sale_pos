@@ -26,6 +26,19 @@ class TenantContext {
         return (string)(self::$tenant['name'] ?? '');
     }
 
+    public static function modules(): string {
+        return (string)(self::$tenant['modules'] ?? 'pos');
+    }
+
+    public static function hasModule(string $module): bool {
+        $mods = strtolower(self::modules());
+        if ($mods === 'combo' || $mods === 'all') {
+            return true;
+        }
+        $parts = array_map('trim', explode(',', $mods));
+        return in_array(strtolower($module), $parts, true);
+    }
+
     public static function check(): bool {
         return self::$tenant !== null && self::id() > 0;
     }

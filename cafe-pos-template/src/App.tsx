@@ -10,6 +10,13 @@ import { ProductManagementView } from './views/ProductManagementView';
 import { TableManagementView } from './views/TableManagementView';
 import { SaaSBillingView } from './views/SaaSBillingView';
 import { AuthModal } from './views/AuthModal';
+import { RoomRackView } from './views/hotel/RoomRackView';
+import { FrontDeskBookingView } from './views/hotel/FrontDeskBookingView';
+import { GuestFolioView } from './views/hotel/GuestFolioView';
+import { HousekeepingView } from './views/hotel/HousekeepingView';
+import { NightAuditView } from './views/hotel/NightAuditView';
+import { RoomTypeManagementView } from './views/hotel/RoomTypeManagementView';
+import type { HotelRoom } from './types/hotel';
 import { Monitor, Tablet, Smartphone, Coffee, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { authApi, getStoredToken, getStoredTenant, getStoredUser } from './services/api';
 import type { TenantInfo, UserInfo } from './types/auth';
@@ -22,6 +29,10 @@ export default function App() {
   const [user, setUser] = useState<UserInfo | null>(getStoredUser());
   const [tenant, setTenant] = useState<TenantInfo | null>(getStoredTenant());
   const [showAuthModal, setShowAuthModal] = useState<boolean>(!getStoredToken());
+
+  // Hotel navigation state
+  const [preSelectedRoom, setPreSelectedRoom] = useState<HotelRoom | null>(null);
+  const [folioBookingId, setFolioBookingId] = useState<number | null>(null);
 
   useEffect(() => {
     // If token exists, sync me profile in background
@@ -90,6 +101,12 @@ export default function App() {
                 {activeTab === 'kitchen' && 'Struk & Kitchen Display System'}
                 {activeTab === 'products' && 'Pengelolaan Produk & Harga'}
                 {activeTab === 'tables' && 'Master Data & Denah Meja'}
+                {activeTab === 'hotel_rack' && 'Denah & Status Okupansi Kamar (Room Rack)'}
+                {activeTab === 'hotel_front_desk' && 'Front Desk & Manajemen Reservasi Tamu'}
+                {activeTab === 'hotel_folio' && 'Folio Tagihan Tamu & Kasir Hotel'}
+                {activeTab === 'hotel_housekeeping' && 'Housekeeping & Penugasan Kebersihan'}
+                {activeTab === 'hotel_night_audit' && 'Night Audit & Rekapitulasi Finansial Harian'}
+                {activeTab === 'hotel_rooms' && 'Master Data Tipe & Nomor Unit Kamar'}
                 {activeTab === 'saas_billing' && 'Pusat Langganan SaaS & Simulasi Lifecycle'}
               </span>
             </div>
@@ -179,6 +196,36 @@ export default function App() {
             {activeTab === 'kitchen' && <KitchenTicketView />}
             {activeTab === 'products' && <ProductManagementView />}
             {activeTab === 'tables' && <TableManagementView />}
+            {activeTab === 'hotel_rack' && (
+              <RoomRackView 
+                onOpenBookingModal={(room) => {
+                  setPreSelectedRoom(room || null);
+                  setActiveTab('hotel_front_desk');
+                }}
+                onOpenFolio={(bId) => {
+                  setFolioBookingId(bId);
+                  setActiveTab('hotel_folio');
+                }}
+              />
+            )}
+            {activeTab === 'hotel_front_desk' && (
+              <FrontDeskBookingView 
+                preSelectedRoom={preSelectedRoom}
+                onOpenFolio={(bId) => {
+                  setFolioBookingId(bId);
+                  setActiveTab('hotel_folio');
+                }}
+              />
+            )}
+            {activeTab === 'hotel_folio' && (
+              <GuestFolioView 
+                bookingId={folioBookingId} 
+                onBack={() => setActiveTab('hotel_front_desk')}
+              />
+            )}
+            {activeTab === 'hotel_housekeeping' && <HousekeepingView />}
+            {activeTab === 'hotel_night_audit' && <NightAuditView />}
+            {activeTab === 'hotel_rooms' && <RoomTypeManagementView />}
             {activeTab === 'saas_billing' && (
               <SaaSBillingView 
                 tenant={tenant} 

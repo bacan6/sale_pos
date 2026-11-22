@@ -73,6 +73,27 @@ export const SaaSBillingView: React.FC<SaaSBillingViewProps> = ({ tenant, onTena
     }
   };
 
+  const handleSimulatePlan = async (planKey: string) => {
+    setLoading(true);
+    setActionMessage(null);
+    try {
+      const res = await billingApi.simulatePlanChange(planKey);
+      const updatedTenant: TenantInfo = {
+        ...(tenant || getStoredTenant()!),
+        plan: res.data?.plan || planKey,
+        modules: res.data?.modules || 'combo',
+        max_devices: res.data?.max_devices || 3,
+      };
+      setStoredTenant(updatedTenant);
+      onTenantUpdate(updatedTenant);
+      setActionMessage(`🎉 Berhasil beralih ke paket: ${res.message || planKey.toUpperCase()}`);
+    } catch (err: any) {
+      setActionMessage('❌ ' + (err.message || 'Gagal ubah paket'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSimulateStatus = async (newStatus: 'waiting_activation' | 'active' | 'on_hold' | 'terminated') => {
     setLoading(true);
     setActionMessage(null);
@@ -166,6 +187,106 @@ export const SaaSBillingView: React.FC<SaaSBillingViewProps> = ({ tenant, onTena
               <span>{tenant?.subscription_expires_at ? new Date(tenant.subscription_expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Aktif (30 Hari)'}</span>
             </h4>
             <span className="text-[10px] text-emerald-600 font-semibold">Perpanjangan otomatis aktif</span>
+          </div>
+        </div>
+
+        {/* MODULAR BUSINESS PACKAGES */}
+        <div className="bg-white p-5 rounded-3xl shadow-xs border border-neutral-200/70 space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-600" />
+              <h3 className="text-sm font-black text-neutral-900">Pilihan Paket Modular (POS vs Hotel vs Combo)</h3>
+            </div>
+            <span className="text-[11px] font-bold text-neutral-400">1 Tenant • Multi-Bisnis</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {/* POS Solo */}
+            <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+              tenant?.plan === 'pos_starter' ? 'border-amber-600 bg-amber-50/30 ring-2 ring-amber-600/20' : 'border-neutral-200 bg-neutral-50/50'
+            }`}>
+              <div>
+                <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full inline-block mb-1">
+                  Khusus F&B / Cafe
+                </span>
+                <h4 className="text-base font-black text-neutral-900">Cafe POS Solo</h4>
+                <p className="text-xs text-neutral-500 mt-0.5">Modul Kasir POS, Waitstaff, Kiosk, Kitchen Ticket & Meja</p>
+                <div className="my-3 text-lg font-black text-amber-800">
+                  Rp 150.000 <span className="text-xs text-neutral-400 font-normal">/ bln</span>
+                </div>
+                <ul className="text-xs space-y-1 text-neutral-600 mb-4 font-medium">
+                  <li>✓ Point of Sale Kasir</li>
+                  <li>✓ Kitchen Display System</li>
+                  <li>✓ 3 Perangkat Kasir/Tablet</li>
+                  <li className="text-neutral-400">✗ Modul Hotel PMS (Nonaktif)</li>
+                </ul>
+              </div>
+              <button
+                disabled={loading || tenant?.plan === 'pos_starter'}
+                onClick={() => handleSimulatePlan('pos_starter')}
+                className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-500 text-white transition-all shadow-xs"
+              >
+                {tenant?.plan === 'pos_starter' ? '✓ Paket Aktif' : 'Pilih Paket POS'}
+              </button>
+            </div>
+
+            {/* Hotel Solo */}
+            <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+              tenant?.plan === 'hotel_starter' ? 'border-blue-600 bg-blue-50/30 ring-2 ring-blue-600/20' : 'border-neutral-200 bg-neutral-50/50'
+            }`}>
+              <div>
+                <span className="text-[10px] font-black uppercase text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full inline-block mb-1">
+                  Khusus Penginapan
+                </span>
+                <h4 className="text-base font-black text-neutral-900">Hotel PMS Solo</h4>
+                <p className="text-xs text-neutral-500 mt-0.5">Room Rack, Front Desk, Guest Folio, Housekeeping & Night Audit</p>
+                <div className="my-3 text-lg font-black text-blue-800">
+                  Rp 350.000 <span className="text-xs text-neutral-400 font-normal">/ bln</span>
+                </div>
+                <ul className="text-xs space-y-1 text-neutral-600 mb-4 font-medium">
+                  <li>✓ Visual Room Rack & Status</li>
+                  <li>✓ Front Desk Check-in/out</li>
+                  <li>✓ Housekeeping & Night Audit</li>
+                  <li className="text-neutral-400">✗ Modul Kasir Cafe POS (Nonaktif)</li>
+                </ul>
+              </div>
+              <button
+                disabled={loading || tenant?.plan === 'hotel_starter'}
+                onClick={() => handleSimulatePlan('hotel_starter')}
+                className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-500 text-white transition-all shadow-xs"
+              >
+                {tenant?.plan === 'hotel_starter' ? '✓ Paket Aktif' : 'Pilih Paket Hotel'}
+              </button>
+            </div>
+
+            {/* All-in-One Combo */}
+            <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+              tenant?.plan === 'combo_pro' ? 'border-amber-600 bg-amber-500/10 ring-2 ring-amber-600/30' : 'border-neutral-200 bg-neutral-50/50'
+            }`}>
+              <div>
+                <span className="text-[10px] font-black uppercase text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full inline-block mb-1">
+                  ⭐ Paling Lengkap (All-in-One)
+                </span>
+                <h4 className="text-base font-black text-neutral-900">Combo Pro (Hotel + POS)</h4>
+                <p className="text-xs text-neutral-500 mt-0.5">Semua fitur Hotel PMS + Cafe POS + Integrasi Charge to Room</p>
+                <div className="my-3 text-lg font-black text-amber-700">
+                  Rp 500.000 <span className="text-xs text-neutral-400 font-normal">/ bln</span>
+                </div>
+                <ul className="text-xs space-y-1 text-neutral-700 mb-4 font-medium">
+                  <li className="text-emerald-700 font-bold">✓ Modul Cafe POS Lengkap</li>
+                  <li className="text-blue-700 font-bold">✓ Modul Hotel PMS Lengkap</li>
+                  <li className="text-amber-800 font-black">✓ Integrasi Tagih ke Kamar (Room Folio)</li>
+                  <li>✓ 15 Perangkat POS & Tablet Front Desk</li>
+                </ul>
+              </div>
+              <button
+                disabled={loading || tenant?.plan === 'combo_pro'}
+                onClick={() => handleSimulatePlan('combo_pro')}
+                className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 disabled:bg-neutral-200 disabled:text-neutral-500 text-white transition-all shadow-sm"
+              >
+                {tenant?.plan === 'combo_pro' ? '✓ Paket Aktif (Lengkap)' : 'Aktifkan Combo Pro'}
+              </button>
+            </div>
           </div>
         </div>
 

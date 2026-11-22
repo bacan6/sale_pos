@@ -4,6 +4,7 @@ export interface TenantInfo {
   slug: string;
   status: 'waiting_activation' | 'active' | 'on_hold' | 'terminated';
   plan: string;
+  modules?: string; // 'pos' | 'hotel' | 'combo'
   max_devices: number;
   subscription_expires_at?: string;
   expires_at?: string;

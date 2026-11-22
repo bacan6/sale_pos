@@ -19,12 +19,32 @@ return [
     ],
     'saas' => [
         'platform_secret' => getenv('PLATFORM_SECRET') ?: 'master_super_secret_key_889922',
-        'default_plan' => 'starter',
+        'default_plan' => 'combo_pro',
         'plans' => [
-            'free' => ['max_devices' => 1, 'name' => 'Free Trial Plan'],
-            'starter' => ['max_devices' => 3, 'name' => 'Starter Plan'],
-            'pro' => ['max_devices' => 10, 'name' => 'Pro Plan'],
-            'enterprise' => ['max_devices' => 99, 'name' => 'Enterprise Plan'],
+            'pos_starter' => [
+                'name' => 'Cafe POS Solo',
+                'modules' => 'pos',
+                'max_devices' => 3,
+                'price' => 150000,
+            ],
+            'hotel_starter' => [
+                'name' => 'Hotel PMS Solo',
+                'modules' => 'hotel',
+                'max_devices' => 5,
+                'price' => 350000,
+            ],
+            'combo_pro' => [
+                'name' => 'All-in-One Combo (Hotel + POS)',
+                'modules' => 'combo',
+                'max_devices' => 15,
+                'price' => 500000,
+            ],
+            'enterprise' => [
+                'name' => 'Enterprise Unlimited',
+                'modules' => 'combo',
+                'max_devices' => 99,
+                'price' => 1200000,
+            ],
         ],
     ],
 ];
