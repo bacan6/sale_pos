@@ -32,11 +32,11 @@ export const WaitstaffView: React.FC = () => {
 
   const addItem = (product: Product) => {
     setOrderItems(prev => {
-      const idx = prev.findIndex(i => i.product.id === product.id);
-      if (idx > -1) {
-        const copy = [...prev];
-        copy[idx].qty += 1;
-        return copy;
+      const existing = prev.find(i => i.product.id === product.id);
+      if (existing) {
+        return prev.map(i => 
+          i.product.id === product.id ? { ...i, qty: i.qty + 1 } : i
+        );
       }
       return [...prev, { product, qty: 1, notes: '' }];
     });

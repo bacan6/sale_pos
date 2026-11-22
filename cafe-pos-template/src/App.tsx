@@ -78,7 +78,7 @@ export default function App() {
         </header>
 
         {/* Viewport Frame with Simulated Device Dimensions */}
-        <main className="flex-1 overflow-hidden flex items-center justify-center p-0 md:p-3 bg-neutral-200/80">
+        <main className="flex-1 overflow-hidden flex items-center justify-center p-0 md:p-3 bg-neutral-200/80 pb-14 md:pb-3">
           <div className={`
             h-full overflow-hidden transition-all duration-300 bg-neutral-100 relative
             ${devicePreview === 'desktop' ? 'w-full shadow-none md:rounded-2xl border border-neutral-300' : ''}
@@ -86,7 +86,7 @@ export default function App() {
             ${devicePreview === 'mobile' ? 'w-[420px] max-w-full shadow-2xl rounded-3xl border-8 border-neutral-800 my-auto' : ''}
           `}>
             {activeTab === 'cashier' && <CashierView />}
-            {activeTab === 'customer' && <CustomerMenuView />}
+            {activeTab === 'customer' && <CustomerMenuView devicePreview={devicePreview} />}
             {activeTab === 'waitstaff' && <WaitstaffView />}
             {activeTab === 'kitchen' && <KitchenTicketView />}
             {activeTab === 'products' && <ProductManagementView />}
