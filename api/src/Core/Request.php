@@ -28,17 +28,38 @@ class Request {
 
     public static function header(string $name): ?string {
         $normalized = strtoupper(str_replace('-', '_', $name));
-        $serverKey = 'HTTP_' . $normalized;
+        $keys = [
+            'HTTP_' . $normalized,
+            'REDIRECT_HTTP_' . $normalized,
+            'REDIRECT_REDIRECT_HTTP_' . $normalized,
+            $normalized,
+            'REDIRECT_' . $normalized,
+        ];
 
-        if (isset($_SERVER[$serverKey])) {
-            return (string)$_SERVER[$serverKey];
+        foreach ($keys as $k) {
+            if (!empty($_SERVER[$k])) {
+                return (string)$_SERVER[$k];
+            }
+        }
+
+        if (function_exists('apache_request_headers')) {
+            $apacheHeaders = apache_request_headers();
+            if (is_array($apacheHeaders)) {
+                foreach ($apacheHeaders as $k => $v) {
+                    if (strcasecmp((string)$k, $name) === 0) {
+                        return (string)$v;
+                    }
+                }
+            }
         }
 
         if (function_exists('getallheaders')) {
             $headers = getallheaders();
-            foreach ($headers as $k => $v) {
-                if (strcasecmp($k, $name) === 0) {
-                    return (string)$v;
+            if (is_array($headers)) {
+                foreach ($headers as $k => $v) {
+                    if (strcasecmp((string)$k, $name) === 0) {
+                        return (string)$v;
+                    }
                 }
             }
         }

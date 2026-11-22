@@ -11,9 +11,11 @@ use App\Core\TenantContext;
 
 class BearerAuth {
     public static function handle(): void {
-        $authHeader = Request::header('Authorization') ?: Request::header('HTTP_AUTHORIZATION');
+        $authHeader = Request::header('Authorization') 
+            ?: ($_SERVER['HTTP_AUTHORIZATION'] ?? null) 
+            ?: ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null);
 
-        if (!$authHeader || !preg_match('/Bearer\s+(.+)$/i', $authHeader, $matches)) {
+        if (!$authHeader || !preg_match('/Bearer\s+(.+)$/i', (string)$authHeader, $matches)) {
             Response::error('Autentikasi Bearer token tidak ditemukan di header Authorization', 401);
         }
 

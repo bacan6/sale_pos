@@ -17,14 +17,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onSuccess, onClose
 
   // Login inputs
   const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('pass12345');
+  const [password, setPassword] = useState('admin123');
 
   // Signup inputs
   const [cafeName, setCafeName] = useState('Kopi Senja Utama');
   const [slug, setSlug] = useState('kopi-senja');
   const [email, setEmail] = useState('admin@kopisenja.com');
   const [signupUsername, setSignupUsername] = useState('admin');
-  const [signupPassword, setSignupPassword] = useState('pass12345');
+  const [signupPassword, setSignupPassword] = useState('admin123');
 
   if (!isOpen) return null;
 
@@ -66,20 +66,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onSuccess, onClose
     setError(null);
     setLoading(true);
     try {
-      const res = await authApi.login('admin', 'pass12345');
+      const res = await authApi.login('admin', 'admin123');
       onSuccess(res.user, res.tenant);
-    } catch {
-      // If default user password changed, auto-login with fallback mock state
-      const fallbackUser: UserInfo = { id: 1, username: 'admin', full_name: 'Administrator', role: 'admin' };
-      const fallbackTenant: TenantInfo = {
-        id: 1,
-        name: 'Kopi Senja Utama',
-        slug: 'kopi-senja',
-        status: 'active',
-        plan: 'pro',
-        max_devices: 10,
-      };
-      onSuccess(fallbackUser, fallbackTenant);
+    } catch (err: any) {
+      setError(err.message || 'Gagal login demo admin.');
     } finally {
       setLoading(false);
     }

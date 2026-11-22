@@ -190,47 +190,57 @@ export default function App() {
             ${devicePreview === 'tablet' ? 'w-[820px] max-w-full shadow-2xl rounded-3xl border-8 border-neutral-800 my-auto' : ''}
             ${devicePreview === 'mobile' ? 'w-[420px] max-w-full shadow-2xl rounded-3xl border-8 border-neutral-800 my-auto' : ''}
           `}>
-            {activeTab === 'cashier' && <CashierView />}
-            {activeTab === 'customer' && <CustomerMenuView devicePreview={devicePreview} />}
-            {activeTab === 'waitstaff' && <WaitstaffView />}
-            {activeTab === 'kitchen' && <KitchenTicketView />}
-            {activeTab === 'products' && <ProductManagementView />}
-            {activeTab === 'tables' && <TableManagementView />}
-            {activeTab === 'hotel_rack' && (
-              <RoomRackView 
-                onOpenBookingModal={(room) => {
-                  setPreSelectedRoom(room || null);
-                  setActiveTab('hotel_front_desk');
-                }}
-                onOpenFolio={(bId) => {
-                  setFolioBookingId(bId);
-                  setActiveTab('hotel_folio');
-                }}
-              />
-            )}
-            {activeTab === 'hotel_front_desk' && (
-              <FrontDeskBookingView 
-                preSelectedRoom={preSelectedRoom}
-                onOpenFolio={(bId) => {
-                  setFolioBookingId(bId);
-                  setActiveTab('hotel_folio');
-                }}
-              />
-            )}
-            {activeTab === 'hotel_folio' && (
-              <GuestFolioView 
-                bookingId={folioBookingId} 
-                onBack={() => setActiveTab('hotel_front_desk')}
-              />
-            )}
-            {activeTab === 'hotel_housekeeping' && <HousekeepingView />}
-            {activeTab === 'hotel_night_audit' && <NightAuditView />}
-            {activeTab === 'hotel_rooms' && <RoomTypeManagementView />}
-            {activeTab === 'saas_billing' && (
-              <SaaSBillingView 
-                tenant={tenant} 
-                onTenantUpdate={(updated) => setTenant(updated)} 
-              />
+            {showAuthModal ? (
+              <div className="flex flex-col items-center justify-center h-full text-neutral-400 text-xs p-6 text-center">
+                <Coffee className="w-8 h-8 mb-2 opacity-50 text-amber-600" />
+                <p className="font-bold text-neutral-600 text-sm">Autentikasi Diperlukan</p>
+                <p>Silakan login atau registrasi akun melalui jendela autentikasi.</p>
+              </div>
+            ) : (
+              <>
+                {activeTab === 'cashier' && <CashierView />}
+                {activeTab === 'customer' && <CustomerMenuView devicePreview={devicePreview} />}
+                {activeTab === 'waitstaff' && <WaitstaffView />}
+                {activeTab === 'kitchen' && <KitchenTicketView />}
+                {activeTab === 'products' && <ProductManagementView />}
+                {activeTab === 'tables' && <TableManagementView />}
+                {activeTab === 'hotel_rack' && (
+                  <RoomRackView 
+                    onOpenBookingModal={(room) => {
+                      setPreSelectedRoom(room || null);
+                      setActiveTab('hotel_front_desk');
+                    }}
+                    onOpenFolio={(bId) => {
+                      setFolioBookingId(bId);
+                      setActiveTab('hotel_folio');
+                    }}
+                  />
+                )}
+                {activeTab === 'hotel_front_desk' && (
+                  <FrontDeskBookingView 
+                    preSelectedRoom={preSelectedRoom}
+                    onOpenFolio={(bId) => {
+                      setFolioBookingId(bId);
+                      setActiveTab('hotel_folio');
+                    }}
+                  />
+                )}
+                {activeTab === 'hotel_folio' && (
+                  <GuestFolioView 
+                    bookingId={folioBookingId} 
+                    onBack={() => setActiveTab('hotel_front_desk')}
+                  />
+                )}
+                {activeTab === 'hotel_housekeeping' && <HousekeepingView />}
+                {activeTab === 'hotel_night_audit' && <NightAuditView />}
+                {activeTab === 'hotel_rooms' && <RoomTypeManagementView />}
+                {activeTab === 'saas_billing' && (
+                  <SaaSBillingView 
+                    tenant={tenant} 
+                    onTenantUpdate={(updated) => setTenant(updated)} 
+                  />
+                )}
+              </>
             )}
           </div>
         </main>

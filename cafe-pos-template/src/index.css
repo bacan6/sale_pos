@@ -34,8 +34,10 @@
   #printable-kitchen-receipt,
   #printable-kitchen-receipt *,
   #thermal-receipt,
-  #thermal-receipt * {
-    visibility: visible;
+  #thermal-receipt *,
+  #printable-hotel-folio,
+  #printable-hotel-folio * {
+    visibility: visible !important;
   }
 
   #printable-kitchen-receipt,
@@ -54,8 +56,23 @@
     z-index: 99999 !important;
   }
 
+  #printable-hotel-folio {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    padding: 10mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    z-index: 99999 !important;
+  }
+
   @page {
-    size: 80mm auto;
-    margin: 0;
+    size: auto;
+    margin: 8mm;
   }
 }
