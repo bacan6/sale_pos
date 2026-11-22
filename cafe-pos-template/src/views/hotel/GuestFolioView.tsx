@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Printer, RefreshCw, 
-  Utensils, Bed, Sparkles, DollarSign, FileText, ArrowLeft
+  Utensils, Bed, Sparkles, DollarSign, FileText, ArrowLeft, X
 } from 'lucide-react';
 import { hotelApi } from '../../services/hotelApi';
+import { getStoredTenant, getStoredUser } from '../../services/api';
 import type { HotelFolio, HotelBooking } from '../../types/hotel';
 
 interface GuestFolioViewProps {
@@ -31,6 +32,12 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
   const [settleMethod, setSettleMethod] = useState<string>('cash');
   const [settleNotes, setSettleNotes] = useState<string>('');
   const [settling, setSettling] = useState<boolean>(false);
+
+  // Invoice / Folio Print Preview Modal
+  const [showInvoiceModal, setShowInvoiceModal] = useState<boolean>(false);
+
+  const tenant = getStoredTenant();
+  const user = getStoredUser();
 
   const fetchActiveBookings = async () => {
     try {
@@ -124,6 +131,186 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
       default:
         return <Sparkles className="w-3.5 h-3.5 text-purple-600" />;
     }
+  };
+
+  const renderFolioDocument = () => {
+    if (!folio) return null;
+    const hotelName = tenant?.name || 'Grand Senja Hotel & Resort';
+    const isPaid = Number(folio.balance) <= 0;
+    const printDate = new Date().toLocaleString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    return (
+      <div className="text-neutral-900 bg-white">
+        {/* Document Header */}
+        <div className="flex justify-between items-start border-b-2 border-neutral-900 pb-4 mb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Bed className="w-6 h-6 text-amber-800" />
+              <h1 className="text-xl font-black uppercase tracking-tight text-neutral-900">{hotelName}</h1>
+            </div>
+            <p className="text-xs text-neutral-600 font-medium">Sistem Pengelolaan Hotel & Resto PMS Terintegrasi</p>
+            <p className="text-xs text-neutral-500">Layanan Front Desk & Reservasi 24 Jam • Bukti Resmi Folio Tamu</p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider">Official Invoice</span>
+            <h2 className="text-base font-black text-neutral-900 leading-tight">GUEST FOLIO</h2>
+            <div className="mt-1">
+              <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-black uppercase border ${
+                isPaid 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                  : 'bg-rose-50 text-rose-700 border-rose-300'
+              }`}>
+                {isPaid ? 'LUNAS (SETTLED / PAID)' : 'BELUM LUNAS (OPEN BALANCE)'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Guest & Reservation Grid */}
+        <div className="grid grid-cols-2 gap-4 bg-neutral-50 rounded-xl p-4 border border-neutral-200 mb-5 text-xs">
+          <div className="space-y-1.5">
+            <div className="flex">
+              <span className="w-28 text-neutral-500 font-medium">Nomor Folio:</span>
+              <span className="font-bold text-neutral-900">{folio.folio_number}</span>
+            </div>
+            <div className="flex">
+              <span className="w-28 text-neutral-500 font-medium">No. Reservasi:</span>
+              <span className="font-semibold text-neutral-800">{folio.booking_number || '-'}</span>
+            </div>
+            <div className="flex">
+              <span className="w-28 text-neutral-500 font-medium">Nama Tamu:</span>
+              <span className="font-black text-neutral-900">{folio.guest_name}</span>
+            </div>
+            <div className="flex">
+              <span className="w-28 text-neutral-500 font-medium">No. Telepon:</span>
+              <span className="font-medium text-neutral-700">{folio.guest_phone || '-'}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex">
+              <span className="w-28 text-neutral-500 font-medium">Nomor Kamar:</span>
+              <span className="font-black text-amber-800">Kamar #{folio.room_number}</span>
+            </div>
+            <div className="flex">
+              <span className="w-28 text-neutral-500 font-medium">Tipe Kamar:</span>
+              <span className="font-semibold text-neutral-800">{folio.room_type_name}</span>
+            </div>
+            <div className="flex">
+              <span className="w-28 text-neutral-500 font-medium">Periode Inap:</span>
+              <span className="font-medium text-neutral-800">
+                {folio.check_in_date || '-'} s/d {folio.check_out_date || '-'}
+              </span>
+            </div>
+            <div className="flex">
+              <span className="w-28 text-neutral-500 font-medium">Waktu Cetak:</span>
+              <span className="text-neutral-600">{printDate} (Kasir: {user?.full_name || user?.username || 'Front Desk'})</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Itemized Table */}
+        <div className="mb-5 overflow-hidden rounded-xl border border-neutral-200">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200">
+              <tr>
+                <th className="py-2.5 px-3 w-8 text-center">#</th>
+                <th className="py-2.5 px-3 w-28">Kategori</th>
+                <th className="py-2.5 px-3">Rincian Transaksi / Tagihan</th>
+                <th className="py-2.5 px-3 text-center w-12">Qty</th>
+                <th className="py-2.5 px-3 text-right w-28">Biaya (Rp)</th>
+                <th className="py-2.5 px-3 text-right w-28">Bayar (Rp)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-200">
+              {folio.items && folio.items.length > 0 ? (
+                folio.items.map((it, idx) => {
+                  const isPayment = it.category === 'payment';
+                  return (
+                    <tr key={it.id || idx}>
+                      <td className="py-2.5 px-3 text-center text-neutral-400 font-medium">{idx + 1}</td>
+                      <td className="py-2.5 px-3 font-semibold text-neutral-700 capitalize">
+                        {it.category === 'pos_restaurant' ? 'F&B Resto POS' : it.category.replace('_', ' ')}
+                      </td>
+                      <td className="py-2.5 px-3 font-medium text-neutral-900">
+                        {it.description}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-bold text-neutral-600">
+                        {it.quantity}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-medium text-neutral-900">
+                        {!isPayment ? Number(it.amount).toLocaleString('id-ID') : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-700">
+                        {isPayment ? Number(Math.abs(Number(it.amount))).toLocaleString('id-ID') : '-'}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={6} className="text-center py-6 text-neutral-400">
+                    Belum ada transaksi pada folio ini
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Financial Summary & Balance */}
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
+          <div className="w-full sm:w-1/2 p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-xs">
+            <h4 className="font-bold text-neutral-800 mb-1">Catatan & Kebijakan Hotel:</h4>
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              Semua biaya fasilitas kamar, pesanan Resto POS, dan layanan ekstra dicatat dalam folio ini.
+              Kunci kamar fisik / kartu akses harap dikembalikan ke Front Desk saat check-out.
+            </p>
+          </div>
+
+          <div className="w-full sm:w-1/2 max-w-xs ml-auto space-y-1.5 text-xs bg-neutral-50 p-3.5 rounded-xl border border-neutral-200">
+            <div className="flex justify-between">
+              <span className="text-neutral-600">Total Biaya (Charges):</span>
+              <span className="font-bold text-neutral-900">Rp {Number(folio.total_charges).toLocaleString('id-ID')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-600">Total Pembayaran Masuk:</span>
+              <span className="font-bold text-emerald-700">Rp {Number(folio.total_payments).toLocaleString('id-ID')}</span>
+            </div>
+            <div className="border-t border-neutral-300 pt-1.5 flex justify-between items-baseline">
+              <span className="font-black text-neutral-900">Sisa Tagihan (Saldo):</span>
+              <span className={`text-sm font-black ${Number(folio.balance) > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                Rp {Number(folio.balance).toLocaleString('id-ID')}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Signatures */}
+        <div className="grid grid-cols-2 gap-8 pt-6 border-t border-dashed border-neutral-300 text-xs text-center">
+          <div>
+            <p className="text-neutral-500 font-medium mb-14">Tamu / Guest Signature,</p>
+            <div className="border-b border-neutral-400 w-44 mx-auto mb-1"></div>
+            <p className="font-bold text-neutral-800">({folio.guest_name})</p>
+          </div>
+          <div>
+            <p className="text-neutral-500 font-medium mb-14">Front Desk / Cashier,</p>
+            <div className="border-b border-neutral-400 w-44 mx-auto mb-1"></div>
+            <p className="font-bold text-neutral-800">({user?.full_name || user?.username || 'Petugas Front Desk'})</p>
+          </div>
+        </div>
+
+        <div className="text-center text-[10px] text-neutral-400 mt-8 pt-2 border-t border-neutral-100">
+          Terima kasih atas kunjungan Anda di {hotelName}. Harap simpan invoice ini sebagai bukti sah transaksi.
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -310,7 +497,7 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                 <DollarSign className="w-4 h-4" /> Proses Pembayaran Masuk
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={() => setShowInvoiceModal(true)}
                 className="w-full py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
               >
                 <Printer className="w-4 h-4" /> Cetak Lembar Folio / Invoice
@@ -460,6 +647,71 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden Print Container: Formatted strictly for physical printer / PDF export */}
+      {folio && (
+        <div id="printable-hotel-folio" className="hidden print:block font-sans text-neutral-900 bg-white">
+          {renderFolioDocument()}
+        </div>
+      )}
+
+      {/* Official Folio / Invoice Preview Modal */}
+      {showInvoiceModal && folio && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 overflow-y-auto print:hidden">
+          <div className="bg-white rounded-3xl max-w-4xl w-full my-auto shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-neutral-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-600/10 text-amber-700 flex items-center justify-center font-bold">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-neutral-900 leading-tight">Pratinjau Lembar Folio & Invoice Tamu</h3>
+                  <p className="text-[11px] text-neutral-500">Format resmi cetak lembar tagihan hotel dan tanda terima</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+                >
+                  <Printer className="w-4 h-4" /> Cetak Sekarang (Print / PDF)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInvoiceModal(false)}
+                  className="p-2 hover:bg-neutral-200 text-neutral-500 rounded-xl transition-all"
+                  title="Tutup"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-neutral-100">
+              <div className="bg-white rounded-2xl shadow-sm border border-neutral-300 p-6 md:p-8 max-w-[210mm] mx-auto">
+                {renderFolioDocument()}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-neutral-200 bg-neutral-50 flex flex-wrap justify-between items-center gap-2 text-xs">
+              <span className="text-neutral-500 text-[11px]">
+                Pengaturan cetak: Layout <strong>Portrait</strong>, Ukuran kertas <strong>A4</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowInvoiceModal(false)}
+                className="px-4 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 rounded-xl font-bold"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
