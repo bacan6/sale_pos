@@ -21,7 +21,16 @@ class TenantMiddleware {
                 $stmt->execute([$slug]);
                 $tenant = $stmt->fetch();
                 if ($tenant) {
-                    TenantContext::set($tenant);
+                    TenantContext::set([
+                        'id' => (int)$tenant['id'],
+                        'name' => (string)$tenant['name'],
+                        'slug' => (string)$tenant['slug'],
+                        'status' => (string)$tenant['status'],
+                        'plan' => (string)($tenant['plan'] ?? 'free'),
+                        'max_devices' => (int)($tenant['max_devices'] ?? 1),
+                        'expires_at' => $tenant['expires_at'],
+                        'sub_status' => (string)($tenant['sub_status'] ?? 'active'),
+                    ]);
                 }
             }
         }
@@ -31,14 +40,34 @@ class TenantMiddleware {
         }
 
         $tenant = TenantContext::get();
+        $status = (string)($tenant['status'] ?? 'active');
 
-        if ($tenant['status'] === 'suspended') {
-            Response::error('Akun tenant sedang ditangguhkan (suspended). Hubungi customer support', 403);
+        if ($status === 'waiting_activation') {
+            Response::error('Akun tenant sedang menunggu pembayaran aktivasi awal. Silakan selesaikan pembayaran.', 403, [
+                'tenant_status' => 'waiting_activation',
+                'action_required' => 'activation_payment',
+            ]);
+        }
+
+        if ($status === 'on_hold') {
+            Response::error('Akun tenant dalam status on-hold karena pembayaran tertunda. Silakan selesaikan tagihan langganan.', 403, [
+                'tenant_status' => 'on_hold',
+                'action_required' => 'recurring_payment',
+            ]);
+        }
+
+        if ($status === 'terminated') {
+            Response::error('Akun tenant telah diterminasi permanen. Akses ditutup.', 403, [
+                'tenant_status' => 'terminated',
+            ]);
         }
 
         if (isset($tenant['expires_at']) && $tenant['expires_at'] !== null) {
             if (strtotime((string)$tenant['expires_at']) < time()) {
-                Response::error('Langganan tenant telah kedaluwarsa. Silakan perpanjang langganan Anda', 402);
+                Response::error('Langganan tenant telah kedaluwarsa. Silakan perpanjang langganan Anda', 402, [
+                    'tenant_status' => 'expired',
+                    'action_required' => 'renew_subscription',
+                ]);
             }
         }
     }

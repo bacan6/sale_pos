@@ -38,7 +38,7 @@ class SaasRegistrationController {
                 throw new Exception('Slug atau email cafe sudah terdaftar. Gunakan slug atau email lain.');
             }
 
-            $stmtTenant = $db->prepare('INSERT INTO tenants (name, slug, email, phone, address, status) VALUES (?, ?, ?, ?, ?, "trial")');
+            $stmtTenant = $db->prepare('INSERT INTO tenants (name, slug, email, phone, address, status) VALUES (?, ?, ?, ?, ?, "active")');
             $stmtTenant->execute([$name, $slug, $email, $phone ?: null, $address ?: null]);
             $tenantId = (int)$db->lastInsertId();
 
@@ -64,7 +64,7 @@ class SaasRegistrationController {
                ->execute([$tenantId, $tenantId]);
 
             // Buat default primary device kasir
-            $defaultDeviceId = 'POS-' . strtoupper(substr($slug, 0, 8)) . '-01';
+            $defaultDeviceId = 'POS-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $slug), 0, 4)) . '-' . $tenantId . '-' . strtoupper(substr(bin2hex(random_bytes(2)), 0, 3));
             $defaultDeviceSecret = 'sec_' . bin2hex(random_bytes(12));
             $db->prepare('INSERT INTO devices (tenant_id, device_id, device_secret, name, role, is_active) VALUES (?, ?, ?, "Kasir Utama", "cashier", 1)')
                ->execute([$tenantId, $defaultDeviceId, $defaultDeviceSecret]);

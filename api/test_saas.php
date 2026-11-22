@@ -85,7 +85,7 @@ $reg = httpCall('POST', '/v1/saas/register', [
     'admin_username' => 'owner_barat',
     'admin_password' => 'secret12345',
 ]);
-echo "Registration HTTP Code: {$reg['code']}\n";
+echo "Registration HTTP Code: {$reg['code']}, Raw: {$reg['raw']}\n";
 assert($reg['code'] === 201);
 $tenantB = $reg['data']['data'];
 $tenantBId = (int)$tenantB['tenant_id'];
@@ -172,9 +172,9 @@ $foundOrderInA = array_filter($ordersA['data']['data'] ?? [], fn($o) => $o['orde
 echo "Is Tenant B order visible in Tenant A? " . (empty($foundOrderInA) ? 'NO (Isolated!)' : 'YES (Leak!)') . "\n";
 assert(empty($foundOrderInA));
 
-// 7. Testing Tenant Suspension by Super Admin
+// 7. Testing Tenant Suspension / On-Hold by Super Admin
 echo "\n[7] Testing Super Admin Suspending Tenant B:\n";
-$suspendB = httpCall('PUT', "/v1/admin/tenants/{$tenantBId}/status", ['status' => 'suspended'], ['X-Platform-Secret' => $platformSecret]);
+$suspendB = httpCall('PUT', "/v1/admin/tenants/{$tenantBId}/status", ['status' => 'on_hold'], ['X-Platform-Secret' => $platformSecret]);
 echo "Suspend Tenant B HTTP Code: {$suspendB['code']}\n";
 assert($suspendB['code'] === 200);
 

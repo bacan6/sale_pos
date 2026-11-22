@@ -47,9 +47,9 @@ class PlatformAdminController {
         $body = Request::body();
         $status = (string)($body['status'] ?? '');
 
-        $validStatuses = ['active', 'suspended', 'trial'];
+        $validStatuses = ['waiting_activation', 'active', 'on_hold', 'terminated'];
         if (!in_array($status, $validStatuses, true)) {
-            Response::error('Status tenant tidak valid', 422);
+            Response::error('Status tenant tidak valid. Pilihan: waiting_activation, active, on_hold, terminated', 422);
         }
 
         $db = Database::getInstance()->pdo();
