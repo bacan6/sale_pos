@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   CreditCard, Smartphone, UserCheck, Utensils, 
-  Layers, Table 
+  Layers, Table, ShieldCheck 
 } from 'lucide-react';
 import type { ActiveTab } from './Sidebar';
 
@@ -13,11 +13,12 @@ interface MobileNavProps {
 export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, setActiveTab }) => {
   const navItems = [
     { id: 'cashier', label: 'Kasir', icon: CreditCard },
-    { id: 'customer', label: 'Pelanggan', icon: Smartphone },
-    { id: 'waitstaff', label: 'Waitstaff', icon: UserCheck },
+    { id: 'waitstaff', label: 'Waiter', icon: UserCheck },
     { id: 'kitchen', label: 'Dapur', icon: Utensils },
-    { id: 'products', label: 'Produk', icon: Layers },
+    { id: 'products', label: 'Menu', icon: Layers },
     { id: 'tables', label: 'Meja', icon: Table },
+    { id: 'customer', label: 'Kiosk', icon: Smartphone },
+    { id: 'saas_billing', label: 'SaaS', icon: ShieldCheck },
   ];
 
   return (
@@ -34,7 +35,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, setActiveTab })
             }`}
           >
             <Icon className={`w-4 h-4 ${isActive ? 'scale-110' : ''}`} />
-            <span className="text-[10px] mt-0.5">{item.label}</span>
+            <span className="text-[9px] mt-0.5">{item.label}</span>
           </button>
         );
       })}
