@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Printer, RefreshCw, 
-  Utensils, Bed, Sparkles, DollarSign, FileText, ArrowLeft, X
+  Utensils, Bed, Sparkles, DollarSign, FileText, ArrowLeft, X,
+  ShoppingBag, CheckCircle2, AlertTriangle
 } from 'lucide-react';
 import { hotelApi } from '../../services/hotelApi';
 import { getStoredTenant, getStoredUser } from '../../services/api';
-import type { HotelFolio, HotelBooking } from '../../types/hotel';
+import type { HotelFolio, HotelBooking, HotelService } from '../../types/hotel';
 
 interface GuestFolioViewProps {
   bookingId?: number | null;
@@ -15,16 +16,24 @@ interface GuestFolioViewProps {
 export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBack }) => {
   const [folio, setFolio] = useState<HotelFolio | null>(null);
   const [bookings, setBookings] = useState<HotelBooking[]>([]);
+  const [services, setServices] = useState<HotelService[]>([]);
   const [selectedBookingId, setSelectedBookingId] = useState<number>(bookingId || 0);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Add Item Modal
+  // Manual Add Item Modal
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [itemCategory, setItemCategory] = useState<string>('laundry');
   const [itemDescription, setItemDescription] = useState<string>('');
   const [itemAmount, setItemAmount] = useState<number>(0);
   const [itemQty, setItemQty] = useState<number>(1);
   const [savingItem, setSavingItem] = useState<boolean>(false);
+
+  // Service Catalog Picker Modal
+  const [showServicePicker, setShowServicePicker] = useState<boolean>(false);
+  const [selectedService, setSelectedService] = useState<HotelService | null>(null);
+  const [serviceQty, setServiceQty] = useState<number>(1);
+  const [serviceNotes, setServiceNotes] = useState<string>('');
+  const [addingService, setAddingService] = useState<boolean>(false);
 
   // Settle Payment Modal
   const [showSettleModal, setShowSettleModal] = useState<boolean>(false);
@@ -33,18 +42,26 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
   const [settleNotes, setSettleNotes] = useState<string>('');
   const [settling, setSettling] = useState<boolean>(false);
 
+  // Deposit Refund State
+  const [refunding, setRefunding] = useState<boolean>(false);
+
   // Invoice / Folio Print Preview Modal
   const [showInvoiceModal, setShowInvoiceModal] = useState<boolean>(false);
+  const [printFormat, setPrintFormat] = useState<'a4' | 'thermal'>('a4');
 
   const tenant = getStoredTenant();
   const user = getStoredUser();
 
   const fetchActiveBookings = async () => {
     try {
-      const data = await hotelApi.getBookings();
-      setBookings(data);
-      if (!selectedBookingId && data.length > 0) {
-        setSelectedBookingId(data[0].id);
+      const [bookingData, serviceList] = await Promise.all([
+        hotelApi.getBookings(),
+        hotelApi.getServices(),
+      ]);
+      setBookings(bookingData);
+      setServices(serviceList.filter((s) => s.is_active));
+      if (!selectedBookingId && bookingData.length > 0) {
+        setSelectedBookingId(bookingData[0].id);
       }
     } catch (err: any) {
       console.error(err);
@@ -99,6 +116,48 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
     }
   };
 
+  const handleAddServiceToFolio = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!folio || !selectedService) return;
+
+    setAddingService(true);
+    try {
+      await hotelApi.addServiceToFolio(folio.id, {
+        service_id: selectedService.id,
+        quantity: serviceQty,
+        notes: serviceNotes.trim() || undefined,
+      });
+      setShowServicePicker(false);
+      setSelectedService(null);
+      setServiceQty(1);
+      setServiceNotes('');
+      await fetchFolioData(selectedBookingId);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menambahkan layanan ke folio');
+    } finally {
+      setAddingService(false);
+    }
+  };
+
+  const handleRefundDeposit = async () => {
+    if (!folio) return;
+    const excess = Math.abs(Number(folio.balance));
+    if (!confirm(`Kembalikan sisa uang muka/deposit tamu sebesar Rp ${excess.toLocaleString('id-ID')}?`)) return;
+
+    setRefunding(true);
+    try {
+      await hotelApi.refundDeposit(folio.id, {
+        amount: excess,
+        notes: 'Pengembalian sisa deposit saat check-out',
+      });
+      await fetchFolioData(selectedBookingId);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memproses refund deposit');
+    } finally {
+      setRefunding(false);
+    }
+  };
+
   const handleSettle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!folio || settleAmount <= 0) return;
@@ -129,24 +188,18 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
       case 'payment':
         return <DollarSign className="w-3.5 h-3.5 text-emerald-600" />;
       default:
-        return <Sparkles className="w-3.5 h-3.5 text-purple-600" />;
+        return <Sparkles className="w-3.5 h-3.5 text-neutral-500" />;
     }
   };
 
-  const renderFolioDocument = () => {
+  const renderA4Invoice = () => {
     if (!folio) return null;
-    const hotelName = tenant?.name || 'Grand Senja Hotel & Resort';
+    const hotelName = tenant?.name || 'Hotel & Resort PMS';
     const isPaid = Number(folio.balance) <= 0;
-    const printDate = new Date().toLocaleString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const printDate = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
     return (
-      <div className="text-neutral-900 bg-white">
+      <div className="font-sans text-neutral-900 bg-white">
         {/* Document Header */}
         <div className="flex justify-between items-start border-b-2 border-neutral-900 pb-4 mb-4">
           <div>
@@ -188,8 +241,8 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
               <span className="font-black text-neutral-900">{folio.guest_name}</span>
             </div>
             <div className="flex">
-              <span className="w-28 text-neutral-500 font-medium">No. Telepon:</span>
-              <span className="font-medium text-neutral-700">{folio.guest_phone || '-'}</span>
+              <span className="w-28 text-neutral-500 font-medium">No. Identitas:</span>
+              <span className="font-medium text-neutral-700">{folio.id_card_type || 'KTP'}: {folio.id_card_number || '-'}</span>
             </div>
           </div>
 
@@ -305,9 +358,74 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
             <p className="font-bold text-neutral-800">({user?.full_name || user?.username || 'Petugas Front Desk'})</p>
           </div>
         </div>
+      </div>
+    );
+  };
 
-        <div className="text-center text-[10px] text-neutral-400 mt-8 pt-2 border-t border-neutral-100">
-          Terima kasih atas kunjungan Anda di {hotelName}. Harap simpan invoice ini sebagai bukti sah transaksi.
+  const renderThermalReceipt = () => {
+    if (!folio) return null;
+    const hotelName = tenant?.name || 'Hotel & Resort PMS';
+    const printDate = new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
+
+    return (
+      <div className="max-w-[80mm] mx-auto p-4 bg-white text-neutral-900 font-mono text-[11px] leading-relaxed border border-dashed border-neutral-300 rounded-xl shadow-xs">
+        <div className="text-center pb-2 border-b border-dashed border-neutral-400 mb-2">
+          <h2 className="font-black text-sm uppercase">{hotelName}</h2>
+          <p className="text-[10px] text-neutral-600">STRUK TAGIHAN FOLIO HOTEL</p>
+          <p className="text-[9px] text-neutral-500">{printDate}</p>
+        </div>
+
+        <div className="space-y-1 mb-2 text-[10px]">
+          <div className="flex justify-between">
+            <span>No. Folio:</span>
+            <span className="font-bold">{folio.folio_number}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Kamar:</span>
+            <span className="font-bold">#{folio.room_number} ({folio.room_type_name})</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Tamu:</span>
+            <span className="font-bold">{folio.guest_name}</span>
+          </div>
+        </div>
+
+        <div className="border-t border-b border-dashed border-neutral-400 py-2 mb-2 space-y-1.5">
+          {folio.items?.map((it, idx) => {
+            const isPay = it.category === 'payment';
+            return (
+              <div key={idx} className="flex justify-between items-start text-[10px]">
+                <div className="flex-1 pr-2">
+                  <div className="font-bold">{it.description}</div>
+                  <div className="text-[9px] text-neutral-500">{it.quantity} x @ Rp {Math.abs(Number(it.amount) / (it.quantity || 1)).toLocaleString('id-ID')}</div>
+                </div>
+                <div className={`font-bold text-right ${isPay ? 'text-emerald-700' : 'text-neutral-900'}`}>
+                  {isPay ? '-' : ''}Rp {Math.abs(Number(it.amount)).toLocaleString('id-ID')}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="space-y-1 text-[11px] font-bold">
+          <div className="flex justify-between">
+            <span>Total Tagihan:</span>
+            <span>Rp {Number(folio.total_charges).toLocaleString('id-ID')}</span>
+          </div>
+          <div className="flex justify-between text-emerald-700">
+            <span>Total Terbayar:</span>
+            <span>Rp {Number(folio.total_payments).toLocaleString('id-ID')}</span>
+          </div>
+          <div className="flex justify-between text-base border-t border-dashed border-neutral-400 pt-1">
+            <span>Sisa Saldo:</span>
+            <span className={Number(folio.balance) > 0 ? 'text-rose-600' : 'text-emerald-700'}>
+              Rp {Number(folio.balance).toLocaleString('id-ID')}
+            </span>
+          </div>
+        </div>
+
+        <div className="text-center pt-4 text-[9px] text-neutral-500">
+          *** TERIMA KASIH ATAS KUNJUNGAN ANDA ***
         </div>
       </div>
     );
@@ -331,7 +449,7 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
           </div>
           <div>
             <h1 className="text-base font-black text-neutral-900 leading-tight">Folio & Tagihan Tamu (Guest Ledger)</h1>
-            <p className="text-xs text-neutral-500">Item tagihan sewa kamar, pesanan F&B cafe terintegrasi, dan pembayaran</p>
+            <p className="text-xs text-neutral-500">Item tagihan sewa kamar, layanan add-on hotel, pesanan F&B resto, dan pelunasan</p>
           </div>
         </div>
 
@@ -359,158 +477,296 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
         </div>
       </div>
 
-      {/* Main Folio Content */}
+      {/* Main Content Area */}
       {loading ? (
-        <div className="flex-1 flex items-center justify-center bg-white rounded-2xl border border-neutral-200 text-neutral-400 text-sm">
+        <div className="flex-1 flex items-center justify-center text-neutral-400 font-medium text-xs">
           Memuat rincian folio...
         </div>
       ) : !folio ? (
-        <div className="flex-1 flex items-center justify-center bg-white rounded-2xl border border-neutral-200 text-neutral-400 text-sm">
-          Pilih data reservasi untuk melihat rincian folio
+        <div className="flex-1 flex items-center justify-center text-neutral-400 font-medium text-xs">
+          Folio tidak ditemukan
         </div>
       ) : (
-        <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden min-h-0">
-          
-          {/* Left/Main: Folio Breakdown Table */}
-          <div className="flex-1 bg-white rounded-2xl border border-neutral-200 shadow-xs flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-black uppercase text-amber-600 tracking-wider">Nomor Folio</span>
-                <h2 className="text-sm font-black text-neutral-900">{folio.folio_number}</h2>
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0 overflow-hidden">
+          {/* Left Column: Folio Items List */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-neutral-200 shadow-xs flex flex-col min-h-0 overflow-hidden">
+            <div className="p-4 border-b border-neutral-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-neutral-500">Folio ID:</span>
+                <span className="font-black text-xs text-neutral-900 bg-neutral-100 px-2.5 py-0.5 rounded-lg border border-neutral-200">
+                  {folio.folio_number}
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                  folio.status === 'settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {folio.status}
+                </span>
               </div>
+
+              {/* Action Buttons */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl text-xs font-bold transition-all"
+                  onClick={() => setShowServicePicker(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Tambah Biaya Ekstra
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>Tambah Layanan Hotel</span>
                 </button>
+
                 <button
-                  onClick={() => setShowSettleModal(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition-all"
                 >
-                  <DollarSign className="w-3.5 h-3.5" /> Bayar / Settle
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Item Manual</span>
                 </button>
               </div>
             </div>
 
+            {/* Table of Folio Items */}
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-neutral-50 border-b border-neutral-200 sticky top-0 font-bold text-neutral-600">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-neutral-50 border-b border-neutral-200 sticky top-0 z-10 font-bold text-neutral-600">
                   <tr>
-                    <th className="py-2.5 px-4">Kategori</th>
-                    <th className="py-2.5 px-4">Deskripsi Tagihan</th>
-                    <th className="py-2.5 px-4 text-center">Qty</th>
-                    <th className="py-2.5 px-4 text-right">Nominal (Rp)</th>
-                    <th className="py-2.5 px-4 text-right">Waktu</th>
+                    <th className="py-2.5 px-4 w-10">Tipe</th>
+                    <th className="py-2.5 px-4">Deskripsi Transaksi</th>
+                    <th className="py-2.5 px-4 text-center w-14">Qty</th>
+                    <th className="py-2.5 px-4 text-right w-28">Nominal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100 font-medium">
-                  {folio.items && folio.items.length > 0 ? (
-                    folio.items.map((item) => {
-                      const isPayment = item.category === 'payment';
-                      const isPos = item.category === 'pos_restaurant';
-
-                      return (
-                        <tr key={item.id} className="hover:bg-neutral-50/70 transition-all">
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              {getCategoryIcon(item.category)}
-                              <span className="capitalize font-semibold text-neutral-700">
-                                {isPos ? 'F&B Cafe (POS)' : item.category.replace('_', ' ')}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 font-semibold text-neutral-900">
-                            {item.description}
-                            {isPos && (
-                              <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
-                                Charge to Room
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center font-bold text-neutral-600">
-                            {item.quantity}
-                          </td>
-                          <td className={`py-3 px-4 text-right font-black whitespace-nowrap ${isPayment ? 'text-emerald-600' : 'text-neutral-900'}`}>
-                            {isPayment ? '-' : ''}Rp {Math.abs(Number(item.amount)).toLocaleString('id-ID')}
-                          </td>
-                          <td className="py-3 px-4 text-right text-[11px] text-neutral-400 whitespace-nowrap">
-                            {item.created_at ? item.created_at.slice(0, 16) : '-'}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="text-center py-10 text-neutral-400">
-                        Belum ada item tagihan
-                      </td>
-                    </tr>
-                  )}
+                  {folio.items?.map((it) => {
+                    const isPay = it.category === 'payment';
+                    return (
+                      <tr key={it.id} className="hover:bg-neutral-50/70 transition-all">
+                        <td className="py-3 px-4 text-center">
+                          <div className="w-7 h-7 rounded-lg bg-neutral-100 flex items-center justify-center">
+                            {getCategoryIcon(it.category)}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-neutral-900">{it.description}</div>
+                          <div className="text-[10px] text-neutral-400 capitalize">{it.category.replace('_', ' ')} • {it.created_at}</div>
+                        </td>
+                        <td className="py-3 px-4 text-center font-bold text-neutral-700">
+                          {it.quantity}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-bold text-xs ${isPay ? 'text-emerald-700' : 'text-neutral-900'}`}>
+                          {isPay ? '-' : ''}Rp {Math.abs(Number(it.amount)).toLocaleString('id-ID')}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Right Summary Card */}
-          <div className="w-full md:w-80 bg-white rounded-2xl border border-neutral-200 shadow-xs p-5 flex flex-col justify-between shrink-0">
-            <div>
-              <span className="text-[10px] font-black uppercase text-amber-600 tracking-wider">Ringkasan Tagihan</span>
-              <h3 className="text-lg font-black text-neutral-900 mb-1">Kamar #{folio.room_number}</h3>
-              <p className="text-xs text-neutral-500 mb-4">{folio.guest_name} • {folio.room_type_name}</p>
+          {/* Right Column: Financial Recap & Actions */}
+          <div className="space-y-4 flex flex-col justify-between">
+            <div className="space-y-4">
+              {/* Guest Card */}
+              <div className="bg-white rounded-2xl p-4 border border-neutral-200 shadow-xs">
+                <div className="text-[10px] uppercase font-bold text-neutral-400 mb-1">Informasi Kamar & Tamu</div>
+                <div className="font-black text-neutral-900 text-sm">{folio.guest_name}</div>
+                <div className="text-xs text-amber-700 font-bold mt-0.5">
+                  Kamar #{folio.room_number} • {folio.room_type_name}
+                </div>
+                <div className="text-[11px] text-neutral-500 mt-2 space-y-0.5">
+                  <div>Check-in: <strong>{folio.check_in_date}</strong></div>
+                  <div>Check-out: <strong>{folio.check_out_date}</strong></div>
+                  <div>Kontak: {folio.guest_phone || '-'}</div>
+                </div>
+              </div>
 
-              <div className="space-y-3 border-t border-neutral-100 pt-3 text-xs">
+              {/* Balance Summary Card */}
+              <div className="bg-white rounded-2xl p-4 border border-neutral-200 shadow-xs space-y-2.5 text-xs">
+                <div className="text-[10px] uppercase font-bold text-neutral-400">Ringkasan Keuangan</div>
+
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Total Biaya / Charges:</span>
+                  <span className="text-neutral-600">Total Biaya (Charges):</span>
                   <span className="font-bold text-neutral-900">Rp {Number(folio.total_charges).toLocaleString('id-ID')}</span>
                 </div>
+
                 <div className="flex justify-between">
-                  <span className="text-neutral-500">Total Pembayaran Masuk:</span>
-                  <span className="font-bold text-emerald-600">Rp {Number(folio.total_payments).toLocaleString('id-ID')}</span>
+                  <span className="text-neutral-600">Total Pembayaran Masuk:</span>
+                  <span className="font-bold text-emerald-700">Rp {Number(folio.total_payments).toLocaleString('id-ID')}</span>
                 </div>
 
-                <div className="border-t border-neutral-200 pt-3 flex justify-between items-baseline">
-                  <span className="text-xs font-bold text-neutral-700">Sisa Tagihan (Saldo):</span>
-                  <span className={`text-base font-black ${folio.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                <div className="border-t border-neutral-200 pt-2 flex justify-between items-baseline">
+                  <span className="font-black text-neutral-900">Sisa Tagihan (Saldo):</span>
+                  <span className={`text-base font-black ${Number(folio.balance) > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
                     Rp {Number(folio.balance).toLocaleString('id-ID')}
                   </span>
                 </div>
 
-                <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100 text-xs">
-                  <div className="flex justify-between text-neutral-500 mb-1">
-                    <span>Status Folio:</span>
-                    <span className="font-bold uppercase text-neutral-800">{folio.status}</span>
+                {/* Deposit Refund Warning Banner if excess payments */}
+                {Number(folio.balance) < 0 && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 space-y-1.5 mt-2">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-amber-800">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      <span>Kelebihan Uang Muka / Deposit</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800">
+                      Tamu memiliki sisa kredit sebesar <strong>Rp {Math.abs(Number(folio.balance)).toLocaleString('id-ID')}</strong>.
+                    </p>
+                    <button
+                      onClick={handleRefundDeposit}
+                      disabled={refunding}
+                      className="w-full py-1.5 px-2 bg-amber-700 hover:bg-amber-800 text-white rounded-lg font-bold text-xs transition-all shadow-xs"
+                    >
+                      {refunding ? 'Memproses...' : 'Kembalikan Sisa Deposit (Refund)'}
+                    </button>
                   </div>
-                  <div className="text-[11px] text-neutral-400">
-                    {folio.balance <= 0 ? '✓ Semua tagihan sudah lunas' : 'Belum lunas, perlu diselesaikan saat check-out'}
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
-            <div className="space-y-2 pt-4 border-t border-neutral-100">
+            {/* Bottom Actions */}
+            <div className="bg-white rounded-2xl p-4 border border-neutral-200 shadow-xs space-y-2">
               <button
                 onClick={() => setShowSettleModal(true)}
-                className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5"
+                disabled={Number(folio.balance) <= 0}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
-                <DollarSign className="w-4 h-4" /> Proses Pembayaran Masuk
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Pelunasan / Catat Pembayaran</span>
               </button>
+
               <button
                 onClick={() => setShowInvoiceModal(true)}
-                className="w-full py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
               >
-                <Printer className="w-4 h-4" /> Cetak Lembar Folio / Invoice
+                <Printer className="w-4 h-4" />
+                <span>Cetak Lembar Folio / Invoice</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Add Extra Item Modal */}
+      {/* Service Catalog Picker Drawer Modal */}
+      {showServicePicker && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 animate-in zoom-in-95 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-500/10 text-amber-700 rounded-xl">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-neutral-900 leading-tight">Pilih dari Katalog Layanan Hotel</h3>
+                  <p className="text-[11px] text-neutral-500">1-Klik posting layanan ekstra langsung ke folio tamu</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowServicePicker(false);
+                  setSelectedService(null);
+                }}
+                className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-600 text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddServiceToFolio} className="flex-1 flex flex-col min-h-0 pt-3 text-xs">
+              <div className="flex-1 overflow-auto space-y-2 pr-1">
+                {services.map((srv) => {
+                  const isSelected = selectedService?.id === srv.id;
+                  return (
+                    <div
+                      key={srv.id}
+                      onClick={() => setSelectedService(srv)}
+                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                        isSelected
+                          ? 'bg-amber-50/70 border-amber-500 ring-2 ring-amber-500/20'
+                          : 'bg-white border-neutral-200 hover:border-neutral-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded text-[9px] font-black uppercase">
+                            {srv.code}
+                          </span>
+                          <span className="font-bold text-neutral-900 text-xs">{srv.name}</span>
+                        </div>
+                        {srv.description && (
+                          <div className="text-[11px] text-neutral-500 mt-0.5 line-clamp-1">{srv.description}</div>
+                        )}
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <div className="font-black text-amber-700 text-xs">
+                          Rp {srv.price.toLocaleString('id-ID')}
+                        </div>
+                        <div className="text-[10px] text-neutral-400 font-medium">per {srv.unit}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {selectedService && (
+                <div className="pt-3 border-t border-neutral-200 mt-3 space-y-3 shrink-0">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-neutral-700 mb-1">Jumlah (Qty)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        value={serviceQty}
+                        onChange={(e) => setServiceQty(Math.max(1, Number(e.target.value)))}
+                        className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-1.5 font-bold text-neutral-900 text-center"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-neutral-700 mb-1">Total Biaya</label>
+                      <div className="w-full bg-neutral-100 border border-neutral-200 rounded-xl px-3 py-1.5 font-black text-amber-700 text-sm text-center">
+                        Rp {(serviceQty * selectedService.price).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-neutral-700 mb-1">Catatan Tambahan (Opsional)</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Kamar lantai 2 atau nama pemesan..."
+                      value={serviceNotes}
+                      onChange={(e) => setServiceNotes(e.target.value)}
+                      className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-1.5 font-medium"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100 mt-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowServicePicker(false)}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedService || addingService}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-xs disabled:opacity-50"
+                >
+                  {addingService ? 'Memproses...' : 'Posting ke Folio'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Item Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-neutral-200">
             <h3 className="text-base font-black text-neutral-900 mb-3">Tambah Biaya Ekstra ke Kamar</h3>
             <form onSubmit={handleAddItem} className="space-y-3 text-xs">
               <div>
@@ -518,13 +774,13 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                 <select
                   value={itemCategory}
                   onChange={(e) => setItemCategory(e.target.value)}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-semibold text-neutral-800"
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 outline-none font-semibold text-neutral-800"
                 >
                   <option value="laundry">Laundry</option>
                   <option value="minibar">Mini Bar</option>
                   <option value="extra_bed">Extra Bed</option>
                   <option value="amenity">Tambahan Amenities</option>
-                  <option value="damage">Ganti Rugi Kerusakan</option>
+                  <option value="penalty">Penalti / Surcharge</option>
                   <option value="other">Lainnya</option>
                 </select>
               </div>
@@ -537,7 +793,7 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                   placeholder="Contoh: Cuci Kemeja 2 Pcs / Keripik Mini Bar"
                   value={itemDescription}
                   onChange={(e) => setItemDescription(e.target.value)}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-medium"
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 outline-none font-medium"
                 />
               </div>
 
@@ -551,7 +807,7 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                     required
                     value={itemAmount}
                     onChange={(e) => setItemAmount(Number(e.target.value))}
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-medium"
+                    className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 outline-none font-medium"
                   />
                 </div>
                 <div>
@@ -561,7 +817,7 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                     min="1"
                     value={itemQty}
                     onChange={(e) => setItemQty(Number(e.target.value))}
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-medium"
+                    className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 outline-none font-medium"
                   />
                 </div>
               </div>
@@ -589,8 +845,8 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
 
       {/* Settle Payment Modal */}
       {showSettleModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-neutral-200">
             <h3 className="text-base font-black text-neutral-900 mb-3">Catat Pembayaran Masuk</h3>
             <form onSubmit={handleSettle} className="space-y-3 text-xs">
               <div>
@@ -601,7 +857,7 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                   required
                   value={settleAmount}
                   onChange={(e) => setSettleAmount(Number(e.target.value))}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-black text-base text-amber-700"
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 font-black text-base text-amber-700"
                 />
               </div>
 
@@ -610,12 +866,12 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                 <select
                   value={settleMethod}
                   onChange={(e) => setSettleMethod(e.target.value)}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-semibold text-neutral-800"
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 font-semibold text-neutral-800"
                 >
                   <option value="cash">Tunai (Cash)</option>
                   <option value="card">Kartu Debit / Kredit</option>
                   <option value="qris">QRIS</option>
-                  <option value="transfer">Bank Transfer</option>
+                  <option value="bank_transfer">Bank Transfer</option>
                 </select>
               </div>
 
@@ -626,7 +882,7 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
                   placeholder="Contoh: No. Ref Kartu / Bukti Transfer"
                   value={settleNotes}
                   onChange={(e) => setSettleNotes(e.target.value)}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-medium"
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 font-medium"
                 />
               </div>
 
@@ -651,66 +907,65 @@ export const GuestFolioView: React.FC<GuestFolioViewProps> = ({ bookingId, onBac
         </div>
       )}
 
-      {/* Hidden Print Container: Formatted strictly for physical printer / PDF export */}
-      {folio && (
-        <div id="printable-hotel-folio" className="hidden print:block font-sans text-neutral-900 bg-white">
-          {renderFolioDocument()}
-        </div>
-      )}
-
       {/* Official Folio / Invoice Preview Modal */}
       {showInvoiceModal && folio && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 overflow-y-auto print:hidden">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-4xl w-full my-auto shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-neutral-200">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
+            <div className="px-6 py-4 border-b border-neutral-200 flex flex-wrap items-center justify-between gap-3 bg-neutral-50 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-amber-600/10 text-amber-700 flex items-center justify-center font-bold">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-neutral-900 leading-tight">Pratinjau Lembar Folio & Invoice Tamu</h3>
-                  <p className="text-[11px] text-neutral-500">Format resmi cetak lembar tagihan hotel dan tanda terima</p>
+                  <p className="text-[11px] text-neutral-500">Pilih format cetak: Formal A4 atau Struk Thermal 80mm</p>
                 </div>
               </div>
+
+              {/* Format Toggle & Print */}
               <div className="flex items-center gap-2">
+                <div className="flex items-center bg-neutral-200 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    onClick={() => setPrintFormat('a4')}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      printFormat === 'a4' ? 'bg-white shadow-xs text-neutral-900 font-black' : 'text-neutral-600'
+                    }`}
+                  >
+                    Format Formal A4
+                  </button>
+                  <button
+                    onClick={() => setPrintFormat('thermal')}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      printFormat === 'thermal' ? 'bg-white shadow-xs text-neutral-900 font-black' : 'text-neutral-600'
+                    }`}
+                  >
+                    Struk Thermal 80mm
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl text-xs font-bold shadow-xs transition-all"
                 >
-                  <Printer className="w-4 h-4" /> Cetak Sekarang (Print / PDF)
+                  <Printer className="w-4 h-4" /> Cetak (Print / PDF)
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowInvoiceModal(false)}
                   className="p-2 hover:bg-neutral-200 text-neutral-500 rounded-xl transition-all"
-                  title="Tutup"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* Modal Scrollable Body */}
+            {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-neutral-100">
-              <div className="bg-white rounded-2xl shadow-sm border border-neutral-300 p-6 md:p-8 max-w-[210mm] mx-auto">
-                {renderFolioDocument()}
+              <div className="bg-white rounded-2xl shadow-xs border border-neutral-300 p-6 md:p-8 max-w-[210mm] mx-auto">
+                {printFormat === 'a4' ? renderA4Invoice() : renderThermalReceipt()}
               </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-3 border-t border-neutral-200 bg-neutral-50 flex flex-wrap justify-between items-center gap-2 text-xs">
-              <span className="text-neutral-500 text-[11px]">
-                Pengaturan cetak: Layout <strong>Portrait</strong>, Ukuran kertas <strong>A4</strong>
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowInvoiceModal(false)}
-                className="px-4 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 rounded-xl font-bold"
-              >
-                Tutup
-              </button>
             </div>
           </div>
         </div>

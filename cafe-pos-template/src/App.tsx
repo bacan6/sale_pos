@@ -11,9 +11,14 @@ import { TableManagementView } from './views/TableManagementView';
 import { SaaSBillingView } from './views/SaaSBillingView';
 import { AuthModal } from './views/AuthModal';
 import { RoomRackView } from './views/hotel/RoomRackView';
+import { HotelTimelineCalendarView } from './views/hotel/HotelTimelineCalendarView';
 import { FrontDeskBookingView } from './views/hotel/FrontDeskBookingView';
 import { GuestFolioView } from './views/hotel/GuestFolioView';
+import { HotelServicesView } from './views/hotel/HotelServicesView';
+import { GuestCrmView } from './views/hotel/GuestCrmView';
 import { HousekeepingView } from './views/hotel/HousekeepingView';
+import { LostFoundView } from './views/hotel/LostFoundView';
+import { ShiftHandoverView } from './views/hotel/ShiftHandoverView';
 import { NightAuditView } from './views/hotel/NightAuditView';
 import { RoomTypeManagementView } from './views/hotel/RoomTypeManagementView';
 import type { HotelRoom } from './types/hotel';
@@ -41,41 +46,55 @@ export default function App() {
         if (res.user) setUser(res.user);
         if (res.tenant) setTenant(res.tenant);
       }).catch(() => {
-        // token expired or invalid
-        setShowAuthModal(true);
+        // Token invalid
       });
-    } else {
-      setShowAuthModal(true);
     }
   }, []);
 
-  const handleLoginSuccess = (loggedInUser: UserInfo, loggedInTenant: TenantInfo) => {
-    setUser(loggedInUser);
-    setTenant(loggedInTenant);
+  const handleAuthSuccess = (loggedUser: UserInfo, loggedTenant: TenantInfo) => {
+    setUser(loggedUser);
+    setTenant(loggedTenant);
     setShowAuthModal(false);
+
+    // If tenant is hotel-only, default to room rack
+    const modules = (loggedTenant.modules || 'combo').toLowerCase();
+    if (modules === 'hotel') {
+      setActiveTab('hotel_rack');
+    } else {
+      setActiveTab('cashier');
+    }
   };
 
-  const handleLogout = async () => {
-    await authApi.logout();
+  const handleLogout = () => {
+    authApi.logout();
     setUser(null);
     setTenant(null);
     setShowAuthModal(true);
   };
 
-  const tenantStatus = tenant?.status || 'active';
-  const isNonActive = tenantStatus !== 'active';
+  // SaaS Subscription Status Guard
+  const tenantStatus = (tenant?.status || 'active') as string;
+  const isSuspended = tenantStatus === 'suspended' || tenantStatus === 'terminated';
+  const isGracePeriod = tenantStatus === 'grace_period';
+  const isWaitingActivation = tenantStatus === 'waiting_activation';
+  const isOnHold = tenantStatus === 'on_hold';
+  const isNonActive = isSuspended || isGracePeriod || isWaitingActivation || isOnHold;
+
+  // Responsive device container styling helper
+  const getDeviceContainerClass = () => {
+    switch (devicePreview) {
+      case 'tablet':
+        return 'max-w-[768px] my-auto h-[95vh] rounded-3xl shadow-2xl border-8 border-neutral-800 overflow-hidden bg-white';
+      case 'mobile':
+        return 'max-w-[390px] my-auto h-[90vh] rounded-3xl shadow-2xl border-8 border-neutral-800 overflow-hidden bg-white';
+      default:
+        return 'w-full h-full';
+    }
+  };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-neutral-900 font-sans">
-      
-      {/* Auth Modal for Login & Signup */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onSuccess={handleLoginSuccess}
-        canClose={false}
-      />
-
-      {/* Desktop / Tablet Sidebar with Tenant & User info + Logout */}
+    <div className="flex h-screen w-screen overflow-hidden bg-neutral-900 font-sans select-none antialiased">
+      {/* Desktop Left Sidebar */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -102,9 +121,14 @@ export default function App() {
                 {activeTab === 'products' && 'Pengelolaan Produk & Harga'}
                 {activeTab === 'tables' && 'Master Data & Denah Meja'}
                 {activeTab === 'hotel_rack' && 'Denah & Status Okupansi Kamar (Room Rack)'}
+                {activeTab === 'hotel_timeline' && 'Timeline Kalender & Gantt Okupansi Kamar'}
                 {activeTab === 'hotel_front_desk' && 'Front Desk & Manajemen Reservasi Tamu'}
                 {activeTab === 'hotel_folio' && 'Folio Tagihan Tamu & Kasir Hotel'}
+                {activeTab === 'hotel_services' && 'Katalog Layanan & Add-on Ekstra Hotel'}
+                {activeTab === 'hotel_guests' && 'Guest CRM, VIP Tier & Proteksi Blacklist'}
                 {activeTab === 'hotel_housekeeping' && 'Housekeeping & Penugasan Kebersihan'}
+                {activeTab === 'hotel_lost_found' && 'Lost & Found (Barang Tamu Tertinggal)'}
+                {activeTab === 'hotel_shifts' && 'Serah Terima & Shift Kasir Front Desk'}
                 {activeTab === 'hotel_night_audit' && 'Night Audit & Rekapitulasi Finansial Harian'}
                 {activeTab === 'hotel_rooms' && 'Master Data Tipe & Nomor Unit Kamar'}
                 {activeTab === 'saas_billing' && 'Pusat Langganan SaaS & Simulasi Lifecycle'}
@@ -162,36 +186,27 @@ export default function App() {
           </div>
         </header>
 
-        {/* Global Alert Bar if Tenant is Non-Active */}
-        {isNonActive && (
-          <div className="bg-red-600 text-white px-4 py-2 text-xs flex items-center justify-between shadow-sm z-10 shrink-0">
-            <div className="flex items-center gap-2 font-bold">
-              <ShieldAlert className="w-4 h-4 text-red-200 shrink-0" />
-              <span>
-                {tenantStatus === 'waiting_activation' && 'Akun cafe Anda sedang menunggu pembayaran aktivasi awal.'}
-                {tenantStatus === 'on_hold' && 'Akun cafe Anda dalam status On-Hold karena pembayaran langganan tertunda.'}
-                {tenantStatus === 'terminated' && 'Layanan akun cafe Anda telah diterminasi permanen.'}
-              </span>
-            </div>
-            <button
-              onClick={() => setActiveTab('saas_billing')}
-              className="bg-white text-red-700 hover:bg-neutral-100 font-extrabold px-3 py-0.5 rounded-lg text-[11px] shadow-xs"
-            >
-              Simulasi Bayar Sekarang &rarr;
-            </button>
-          </div>
-        )}
-
-        {/* Viewport Frame with Simulated Device Dimensions */}
-        <main className="flex-1 overflow-hidden flex items-center justify-center p-0 md:p-3 bg-neutral-200/80 pb-14 md:pb-3">
-          <div className={`
-            h-full overflow-hidden transition-all duration-300 bg-neutral-100 relative
-            ${devicePreview === 'desktop' ? 'w-full shadow-none md:rounded-2xl border border-neutral-300' : ''}
-            ${devicePreview === 'tablet' ? 'w-[820px] max-w-full shadow-2xl rounded-3xl border-8 border-neutral-800 my-auto' : ''}
-            ${devicePreview === 'mobile' ? 'w-[420px] max-w-full shadow-2xl rounded-3xl border-8 border-neutral-800 my-auto' : ''}
-          `}>
-            {showAuthModal ? (
-              <div className="flex flex-col items-center justify-center h-full text-neutral-400 text-xs p-6 text-center">
+        {/* Dynamic Workspace Container */}
+        <main className={`flex-1 overflow-hidden flex justify-center items-center ${devicePreview !== 'desktop' ? 'p-4 bg-neutral-800/40' : ''}`}>
+          <div className={`${getDeviceContainerClass()} flex flex-col transition-all duration-200 relative`}>
+            
+            {/* SaaS Block Warning Screen if Suspended & not on saas_billing tab */}
+            {isSuspended && activeTab !== 'saas_billing' ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 bg-neutral-900 text-white text-center">
+                <ShieldAlert className="w-16 h-16 text-rose-500 mb-4 animate-bounce" />
+                <h2 className="text-xl font-black mb-2">Layanan SaaS Ditangguhkan</h2>
+                <p className="text-xs text-neutral-400 max-w-sm mb-6 leading-relaxed">
+                  Langganan bisnis Anda saat ini berstatus <strong>SUSPENDED</strong> karena keterlambatan perpanjangan invoice. Semua fitur POS dan reservasi hotel dikunci sementara.
+                </p>
+                <button
+                  onClick={() => setActiveTab('saas_billing')}
+                  className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                >
+                  Buka Pengaturan SaaS & Bayar Tagihan
+                </button>
+              </div>
+            ) : !user ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white text-neutral-500 text-center text-xs">
                 <Coffee className="w-8 h-8 mb-2 opacity-50 text-amber-600" />
                 <p className="font-bold text-neutral-600 text-sm">Autentikasi Diperlukan</p>
                 <p>Silakan login atau registrasi akun melalui jendela autentikasi.</p>
@@ -206,6 +221,18 @@ export default function App() {
                 {activeTab === 'tables' && <TableManagementView />}
                 {activeTab === 'hotel_rack' && (
                   <RoomRackView 
+                    onOpenBookingModal={(room) => {
+                      setPreSelectedRoom(room || null);
+                      setActiveTab('hotel_front_desk');
+                    }}
+                    onOpenFolio={(bId) => {
+                      setFolioBookingId(bId);
+                      setActiveTab('hotel_folio');
+                    }}
+                  />
+                )}
+                {activeTab === 'hotel_timeline' && (
+                  <HotelTimelineCalendarView 
                     onOpenBookingModal={(room) => {
                       setPreSelectedRoom(room || null);
                       setActiveTab('hotel_front_desk');
@@ -231,7 +258,11 @@ export default function App() {
                     onBack={() => setActiveTab('hotel_front_desk')}
                   />
                 )}
+                {activeTab === 'hotel_services' && <HotelServicesView />}
+                {activeTab === 'hotel_guests' && <GuestCrmView />}
                 {activeTab === 'hotel_housekeeping' && <HousekeepingView />}
+                {activeTab === 'hotel_lost_found' && <LostFoundView />}
+                {activeTab === 'hotel_shifts' && <ShiftHandoverView />}
                 {activeTab === 'hotel_night_audit' && <NightAuditView />}
                 {activeTab === 'hotel_rooms' && <RoomTypeManagementView />}
                 {activeTab === 'saas_billing' && (
@@ -248,6 +279,13 @@ export default function App() {
         {/* Mobile Bottom Navigation Bar */}
         <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
+
+      {/* Global Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal}
+        onSuccess={handleAuthSuccess} 
+        onClose={() => setShowAuthModal(false)} 
+      />
     </div>
   );
 }

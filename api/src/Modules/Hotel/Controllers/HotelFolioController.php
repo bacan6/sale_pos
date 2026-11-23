@@ -17,9 +17,9 @@ class HotelFolioController {
         $db = Database::getInstance()->pdo();
 
         $stmt = $db->prepare('SELECT hf.*, 
-                                     hb.booking_number, hb.check_in_date, hb.check_out_date,
-                                     hg.full_name as guest_name, hg.phone as guest_phone, hg.id_card_number,
-                                     hr.room_number, hrt.name as room_type_name
+                                     hb.booking_number, hb.check_in_date, hb.check_out_date, hb.night_count, hb.rate_per_night, hb.deposit_amount, hb.status as booking_status,
+                                     hg.full_name as guest_name, hg.phone as guest_phone, hg.id_card_number, hg.id_card_type, hg.vip_tier,
+                                     hr.room_number, hr.floor, hrt.name as room_type_name
                               FROM hotel_folios hf
                               JOIN hotel_bookings hb ON hf.booking_id = hb.id
                               JOIN hotel_guests hg ON hb.guest_id = hg.id
@@ -90,6 +90,121 @@ class HotelFolioController {
         }
     }
 
+    public function addServiceItem(array $params): void {
+        $folioId = (int)($params['id'] ?? 0);
+        $tenantId = TenantContext::id();
+        $body = Request::body();
+
+        $serviceId = (int)($body['service_id'] ?? 0);
+        $quantity = max(1, (int)($body['quantity'] ?? 1));
+        $notes = trim((string)($body['notes'] ?? ''));
+
+        if ($folioId <= 0 || $serviceId <= 0) {
+            Response::error('Pilih layanan hotel yang valid', 422);
+        }
+
+        $db = Database::getInstance()->pdo();
+        $db->beginTransaction();
+
+        try {
+            $sStmt = $db->prepare('SELECT * FROM hotel_services WHERE id = ? AND tenant_id = ? AND is_active = 1 LIMIT 1');
+            $sStmt->execute([$serviceId, $tenantId]);
+            $service = $sStmt->fetch();
+
+            if (!$service) {
+                throw new Exception('Layanan hotel tidak ditemukan atau nonaktif');
+            }
+
+            $fStmt = $db->prepare('SELECT id, total_charges, total_payments, balance FROM hotel_folios WHERE id = ? AND tenant_id = ? FOR UPDATE');
+            $fStmt->execute([$folioId, $tenantId]);
+            $folio = $fStmt->fetch();
+
+            if (!$folio) {
+                throw new Exception('Folio tidak ditemukan');
+            }
+
+            $lineAmount = (int)$service['price'] * $quantity;
+            $desc = "{$service['name']} [x{$quantity} {$service['unit']}]" . ($notes ? " ({$notes})" : "");
+
+            $cat = in_array($service['category'], ['extra_bed', 'laundry', 'minibar', 'amenity', 'penalty'], true) 
+                ? $service['category'] 
+                : 'other';
+
+            $ins = $db->prepare('INSERT INTO hotel_folio_items (tenant_id, folio_id, category, description, amount, quantity) VALUES (?, ?, ?, ?, ?, ?)');
+            $ins->execute([$tenantId, $folioId, $cat, $desc, $lineAmount, $quantity]);
+
+            $newCharges = (int)$folio['total_charges'] + $lineAmount;
+            $newBalance = $newCharges - (int)$folio['total_payments'];
+
+            $upd = $db->prepare('UPDATE hotel_folios SET total_charges = ?, balance = ? WHERE id = ? AND tenant_id = ?');
+            $upd->execute([$newCharges, $newBalance, $folioId, $tenantId]);
+
+            $db->commit();
+
+            Response::success([
+                'folio_id' => $folioId,
+                'service_name' => $service['name'],
+                'amount' => $lineAmount,
+                'new_balance' => $newBalance,
+            ], "Layanan {$service['name']} berhasil ditambahkan ke folio");
+        } catch (Exception $e) {
+            $db->rollBack();
+            Response::error($e->getMessage(), 400);
+        }
+    }
+
+    public function refundDeposit(array $params): void {
+        $folioId = (int)($params['id'] ?? 0);
+        $tenantId = TenantContext::id();
+        $body = Request::body();
+
+        $amount = (int)($body['amount'] ?? 0);
+        $notes = trim((string)($body['notes'] ?? 'Pengembalian sisa deposit tunai'));
+
+        $db = Database::getInstance()->pdo();
+        $db->beginTransaction();
+
+        try {
+            $fStmt = $db->prepare('SELECT id, total_charges, total_payments, balance FROM hotel_folios WHERE id = ? AND tenant_id = ? FOR UPDATE');
+            $fStmt->execute([$folioId, $tenantId]);
+            $folio = $fStmt->fetch();
+
+            if (!$folio) {
+                throw new Exception('Folio tidak ditemukan');
+            }
+
+            $curBalance = (int)$folio['balance'];
+            if ($amount <= 0) {
+                if ($curBalance >= 0) {
+                    throw new Exception('Folio tidak memiliki kelebihan saldo/deposit untuk dikembalikan');
+                }
+                $amount = abs($curBalance);
+            }
+
+            $desc = "Pengembalian Sisa Deposit Tamu" . ($notes ? " ({$notes})" : "");
+
+            $ins = $db->prepare('INSERT INTO hotel_folio_items (tenant_id, folio_id, category, description, amount, quantity) VALUES (?, ?, "payment", ?, ?, 1)');
+            $ins->execute([$tenantId, $folioId, $desc, $amount]);
+
+            $newPayments = (int)$folio['total_payments'] - $amount;
+            $newBalance = (int)$folio['total_charges'] - $newPayments;
+
+            $upd = $db->prepare('UPDATE hotel_folios SET total_payments = ?, balance = ? WHERE id = ? AND tenant_id = ?');
+            $upd->execute([$newPayments, $newBalance, $folioId, $tenantId]);
+
+            $db->commit();
+
+            Response::success([
+                'folio_id' => $folioId,
+                'refund_amount' => $amount,
+                'new_balance' => $newBalance,
+            ], 'Pengembalian deposit berhasil dicatat');
+        } catch (Exception $e) {
+            $db->rollBack();
+            Response::error($e->getMessage(), 400);
+        }
+    }
+
     public function settle(array $params): void {
         $folioId = (int)($params['id'] ?? 0);
         $tenantId = TenantContext::id();
@@ -100,7 +215,12 @@ class HotelFolioController {
         $notes = trim((string)($body['notes'] ?? ''));
 
         if ($folioId <= 0 || $amount <= 0) {
-            Response::error('Nominal pembayaran wajib diisi', 422);
+            Response::error('Nominal pelunasan/pembayaran wajib diisi', 422);
+        }
+
+        $validMethods = ['cash', 'qris', 'card', 'bank_transfer'];
+        if (!in_array($method, $validMethods, true)) {
+            $method = 'cash';
         }
 
         $db = Database::getInstance()->pdo();
@@ -115,10 +235,10 @@ class HotelFolioController {
                 throw new Exception('Folio tidak ditemukan');
             }
 
-            $desc = 'Pembayaran Masuk (' . strtoupper($method) . ')' . ($notes ? ' - ' . $notes : '');
+            $desc = "Pembayaran " . strtoupper($method) . ($notes ? " - {$notes}" : "");
 
-            $ins = $db->prepare('INSERT INTO hotel_folio_items (tenant_id, folio_id, category, description, amount, quantity) VALUES (?, ?, "payment", ?, ?, 1)');
-            $ins->execute([$tenantId, $folioId, $desc, -$amount]);
+            $insPay = $db->prepare('INSERT INTO hotel_folio_items (tenant_id, folio_id, category, description, amount, quantity) VALUES (?, ?, "payment", ?, ?, 1)');
+            $insPay->execute([$tenantId, $folioId, $desc, -$amount]);
 
             $newPayments = (int)$folio['total_payments'] + $amount;
             $newBalance = (int)$folio['total_charges'] - $newPayments;
@@ -132,9 +252,9 @@ class HotelFolioController {
             Response::success([
                 'folio_id' => $folioId,
                 'paid_amount' => $amount,
-                'remaining_balance' => $newBalance,
+                'new_balance' => $newBalance,
                 'status' => $newStatus,
-            ], 'Pembayaran folio berhasil dicatat');
+            ], 'Pembayaran folio berhasil diproses');
         } catch (Exception $e) {
             $db->rollBack();
             Response::error($e->getMessage(), 400);

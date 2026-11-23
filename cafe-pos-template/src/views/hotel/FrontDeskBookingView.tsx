@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   UserCheck, Plus, Search, 
-  XCircle, RefreshCw
+  XCircle, RefreshCw, ArrowRightLeft, CalendarPlus, 
+  ShieldAlert, Clock
 } from 'lucide-react';
 import { hotelApi } from '../../services/hotelApi';
 import type { HotelBooking, HotelRoom } from '../../types/hotel';
@@ -21,6 +22,9 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
   // New Walk-in / Booking modal state
   const [showModal, setShowModal] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [blacklistWarning, setBlacklistWarning] = useState<string | null>(null);
+  const [overrideBlacklist, setOverrideBlacklist] = useState<boolean>(false);
+
   const [formData, setFormData] = useState({
     room_id: preSelectedRoom ? preSelectedRoom.id : 0,
     guest_name: '',
@@ -36,6 +40,25 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
     notes: '',
     auto_check_in: true,
   });
+
+  // Room Transfer Modal
+  const [transferModalBooking, setTransferModalBooking] = useState<HotelBooking | null>(null);
+  const [transferTargetRoomId, setTransferTargetRoomId] = useState<number>(0);
+  const [transferReason, setTransferReason] = useState<string>('Permintaan tamu pindah kamar');
+  const [transferApplyRate, setTransferApplyRate] = useState<boolean>(false);
+  const [transferring, setTransferring] = useState<boolean>(false);
+
+  // Extend Stay Modal
+  const [extendModalBooking, setExtendModalBooking] = useState<HotelBooking | null>(null);
+  const [extraNights, setExtraNights] = useState<number>(1);
+  const [extending, setExtending] = useState<boolean>(false);
+
+  // Early/Late Charge Modal
+  const [surchargeModalBooking, setSurchargeModalBooking] = useState<HotelBooking | null>(null);
+  const [surchargeType, setSurchargeType] = useState<'late_checkout' | 'early_checkin'>('late_checkout');
+  const [surchargeAmount, setSurchargeAmount] = useState<number>(100000);
+  const [surchargeNotes, setSurchargeNotes] = useState<string>('Late check-out s/d pukul 16:00');
+  const [chargingSurcharge, setChargingSurcharge] = useState<boolean>(false);
 
   const fetchData = async () => {
     try {
@@ -109,8 +132,13 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
 
     try {
       setSubmitting(true);
-      await hotelApi.createBooking(formData);
+      await hotelApi.createBooking({
+        ...formData,
+        override_blacklist: overrideBlacklist,
+      });
       setShowModal(false);
+      setBlacklistWarning(null);
+      setOverrideBlacklist(false);
       await fetchData();
       setFormData({
         room_id: 0,
@@ -128,9 +156,70 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
         auto_check_in: true,
       });
     } catch (err: any) {
-      alert(err.message || 'Gagal membuat reservasi');
+      const msg = err.message || '';
+      if (msg.includes('PERINGATAN BLACKLIST')) {
+        setBlacklistWarning(msg);
+      } else {
+        alert(msg || 'Gagal membuat reservasi');
+      }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferModalBooking || transferTargetRoomId <= 0) return;
+
+    setTransferring(true);
+    try {
+      await hotelApi.transferRoom(transferModalBooking.id, {
+        target_room_id: transferTargetRoomId,
+        reason: transferReason,
+        apply_new_rate: transferApplyRate,
+      });
+      setTransferModalBooking(null);
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memindahkan kamar');
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const handleExtendSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extendModalBooking || extraNights <= 0) return;
+
+    setExtending(true);
+    try {
+      await hotelApi.extendStay(extendModalBooking.id, extraNights);
+      setExtendModalBooking(null);
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memperpanjang masa menginap');
+    } finally {
+      setExtending(false);
+    }
+  };
+
+  const handleSurchargeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!surchargeModalBooking || surchargeAmount <= 0) return;
+
+    setChargingSurcharge(true);
+    try {
+      await hotelApi.addEarlyLateCharge(surchargeModalBooking.id, {
+        type: surchargeType,
+        amount: surchargeAmount,
+        notes: surchargeNotes,
+      });
+      setSurchargeModalBooking(null);
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menambahkan surcharge');
+    } finally {
+      setChargingSurcharge(false);
     }
   };
 
@@ -159,6 +248,10 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
     }
   };
 
+  const availableCleanRooms = rooms.filter(
+    (r) => ['vacant_clean', 'inspected'].includes(r.status) && !r.active_booking_id
+  );
+
   return (
     <div className="flex-1 flex flex-col h-full bg-neutral-100 overflow-hidden p-4 md:p-6">
       {/* Top Header */}
@@ -169,7 +262,7 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
           </div>
           <div>
             <h1 className="text-base font-black text-neutral-900 leading-tight">Front Desk & Reservasi Tamu</h1>
-            <p className="text-xs text-neutral-500">Kelola check-in, check-out, data tamu, dan reservasi walk-in/OTA</p>
+            <p className="text-xs text-neutral-500">Kelola check-in, check-out, pindah kamar, extend stay, dan tagihan folio</p>
           </div>
         </div>
 
@@ -225,13 +318,13 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
             <thead className="bg-neutral-50 border-b border-neutral-200 sticky top-0 z-10 font-bold text-neutral-600">
               <tr>
                 <th className="py-3 px-4">No. Booking</th>
-                <th className="py-3 px-4">Tamu & Kontak</th>
+                <th className="py-3 px-4">Tamu & VIP</th>
                 <th className="py-3 px-4">Kamar & Tipe</th>
                 <th className="py-3 px-4">Sumber Booking</th>
                 <th className="py-3 px-4">Periode Menginap</th>
                 <th className="py-3 px-4">Total & Saldo</th>
                 <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Aksi</th>
+                <th className="py-3 px-4 text-right">Aksi Operasional</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 font-medium">
@@ -254,7 +347,14 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
                       {b.booking_number}
                     </td>
                     <td className="py-3 px-4">
-                      <div className="font-bold text-neutral-900">{b.guest_name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-neutral-900">{b.guest_name}</span>
+                        {b.vip_tier && b.vip_tier !== 'regular' && (
+                          <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded-md text-[9px] font-black uppercase">
+                            VIP
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-neutral-400">{b.guest_phone || '-'} • {b.id_card_number}</div>
                     </td>
                     <td className="py-3 px-4">
@@ -285,27 +385,68 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         {/* Check-In */}
                         {b.status === 'reserved' && (
                           <button
                             onClick={() => handleCheckIn(b.id)}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all"
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
                             title="Proses Check-In"
                           >
                             Check-In
                           </button>
                         )}
 
-                        {/* Check-Out */}
+                        {/* Front Desk v2 Operational Actions for checked_in */}
                         {b.status === 'checked_in' && (
-                          <button
-                            onClick={() => handleCheckOut(b)}
-                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all"
-                            title="Proses Check-Out"
-                          >
-                            Check-Out
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                setTransferModalBooking(b);
+                                setTransferTargetRoomId(0);
+                                setTransferReason('Permintaan tamu pindah kamar');
+                                setTransferApplyRate(false);
+                              }}
+                              className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1"
+                              title="Pindah Kamar (Room Transfer)"
+                            >
+                              <ArrowRightLeft className="w-3 h-3" />
+                              <span>Pindah</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setExtendModalBooking(b);
+                                setExtraNights(1);
+                              }}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1"
+                              title="Perpanjang Menginap (+Malam)"
+                            >
+                              <CalendarPlus className="w-3 h-3" />
+                              <span>+Malam</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setSurchargeModalBooking(b);
+                                setSurchargeAmount(100000);
+                                setSurchargeNotes('Late check-out s/d pukul 16:00');
+                              }}
+                              className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1"
+                              title="Surcharge / Denda"
+                            >
+                              <Clock className="w-3 h-3" />
+                              <span>Surcharge</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleCheckOut(b)}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                              title="Proses Check-Out"
+                            >
+                              Check-Out
+                            </button>
+                          </>
                         )}
 
                         {/* View Folio */}
@@ -339,58 +480,104 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
 
       {/* New Booking / Walk-in Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto border border-neutral-200">
             <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-3">
               <div>
                 <span className="text-[11px] font-extrabold uppercase text-amber-600 tracking-wider">Reservasi Baru</span>
                 <h3 className="text-lg font-black text-neutral-900">Formulir Walk-In & Reservasi Hotel</h3>
               </div>
               <button 
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  setBlacklistWarning(null);
+                }}
                 className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-600 text-sm font-bold"
               >
                 ✕
               </button>
             </div>
 
+            {/* Blacklist Alert Modal */}
+            {blacklistWarning && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-300 rounded-2xl text-red-900 space-y-2 animate-in fade-in">
+                <div className="flex items-center gap-2 font-black text-xs text-red-800">
+                  <ShieldAlert className="w-5 h-5 text-red-600" />
+                  <span>PERINGATAN RESIKO: TAMU DAFTAR HITAM</span>
+                </div>
+                <p className="text-xs font-semibold leading-relaxed">
+                  {blacklistWarning}
+                </p>
+                <div className="pt-2 border-t border-red-200 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="confirm_override"
+                    checked={overrideBlacklist}
+                    onChange={(e) => setOverrideBlacklist(e.target.checked)}
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
+                  />
+                  <label htmlFor="confirm_override" className="text-xs font-black text-red-900 cursor-pointer">
+                    Saya berwenang & menyetujui override reservasi untuk tamu ini
+                  </label>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmitBooking} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-neutral-700 mb-1">Pilih Kamar *</label>
                 <select
+                  required
                   value={formData.room_id}
                   onChange={(e) => setFormData({ ...formData, room_id: Number(e.target.value) })}
                   className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-semibold text-neutral-800"
-                  required
                 >
-                  <option value={0}>-- Pilih Kamar Tersedia --</option>
-                  {rooms.map(r => (
-                    <option key={r.id} value={r.id} disabled={r.status.startsWith('occupied')}>
-                      #{r.room_number} - {r.room_type_name} (Lt {r.floor}) • Rp {Number(r.base_price).toLocaleString('id-ID')} {r.status.startsWith('occupied') ? '[Terisi]' : ''}
-                    </option>
-                  ))}
+                  <option value={0}>-- Pilih Unit Kamar --</option>
+                  {rooms.map((r) => {
+                    const isOccupied = !emptyOrNull(r.active_booking_id);
+                    return (
+                      <option 
+                        key={r.id} 
+                        value={r.id} 
+                        disabled={isOccupied}
+                      >
+                        Kamar #{r.room_number} - {r.room_type_name} (Lt {r.floor}) • {r.status.toUpperCase()} {isOccupied ? '(Terisi)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-neutral-700 mb-1">Nama Lengkap Tamu *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nama sesuai KTP/Paspor"
+                  value={formData.guest_name}
+                  onChange={(e) => setFormData({ ...formData, guest_name: e.target.value })}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-medium"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block font-bold text-neutral-700 mb-1">Nama Lengkap Tamu *</label>
+                  <label className="block font-bold text-neutral-700 mb-1">No. Handphone / WhatsApp</label>
                   <input
                     type="text"
-                    required
-                    placeholder="Contoh: Budi Santoso"
-                    value={formData.guest_name}
-                    onChange={(e) => setFormData({ ...formData, guest_name: e.target.value })}
+                    placeholder="08xxxxxxxxxx"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-neutral-700 mb-1">Nomor Kontak (WhatsApp)</label>
+                  <label className="block font-bold text-neutral-700 mb-1">Email Tamu</label>
                   <input
-                    type="text"
-                    placeholder="Contoh: 08123456789"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    type="email"
+                    placeholder="email@example.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 outline-none font-medium"
                   />
                 </div>
@@ -521,9 +708,248 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-sm transition-all"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-sm transition-all disabled:opacity-50"
                 >
                   {submitting ? 'Menyimpan...' : 'Simpan Reservasi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Room Transfer Modal (Pindah Kamar) */}
+      {transferModalBooking && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-neutral-200 animate-in zoom-in-95">
+            <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-3">
+              <div>
+                <span className="text-[11px] font-extrabold uppercase text-amber-700 tracking-wider">Operasional Front Desk</span>
+                <h3 className="text-base font-black text-neutral-900">Pindah Kamar (Room Move)</h3>
+              </div>
+              <button 
+                onClick={() => setTransferModalBooking(null)}
+                className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleTransferSubmit} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200">
+                <div className="text-[10px] uppercase font-bold text-neutral-400">Tamu & Kamar Saat Ini</div>
+                <div className="font-extrabold text-neutral-900 text-sm">{transferModalBooking.guest_name}</div>
+                <div className="text-amber-700 font-bold">Kamar #{transferModalBooking.room_number} • {transferModalBooking.room_type_name}</div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-neutral-700 mb-1">Pilih Kamar Tujuan (Siap Huni) *</label>
+                <select
+                  required
+                  value={transferTargetRoomId}
+                  onChange={(e) => setTransferTargetRoomId(Number(e.target.value))}
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 font-semibold text-neutral-800 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value={0}>-- Pilih Kamar Baru --</option>
+                  {availableCleanRooms
+                    .filter((r) => r.id !== transferModalBooking.room_id)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        Kamar #{r.room_number} (Lt {r.floor}) • {r.room_type_name} @ Rp {r.base_price?.toLocaleString('id-ID')}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-neutral-700 mb-1">Alasan Pindah Kamar *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: AC bising / Upgrade tamu / Permintaan tamu"
+                  value={transferReason}
+                  onChange={(e) => setTransferReason(e.target.value)}
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 font-medium focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <input
+                  type="checkbox"
+                  id="apply_new_rate"
+                  checked={transferApplyRate}
+                  onChange={(e) => setTransferApplyRate(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-600 cursor-pointer"
+                />
+                <label htmlFor="apply_new_rate" className="font-bold text-amber-900 cursor-pointer text-xs">
+                  Terapkan tarif kamar baru untuk sisa malam menginap (update Folio)
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setTransferModalBooking(null)}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={transferring}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-xs disabled:opacity-50"
+                >
+                  {transferring ? 'Memproses...' : 'Konfirmasi Pindah Kamar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Extend Stay Modal (+Malam) */}
+      {extendModalBooking && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-neutral-200 animate-in zoom-in-95">
+            <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-3">
+              <div>
+                <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">Perpanjang Menginap</span>
+                <h3 className="text-base font-black text-neutral-900">Extend Stay Kamar #{extendModalBooking.room_number}</h3>
+              </div>
+              <button 
+                onClick={() => setExtendModalBooking(null)}
+                className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleExtendSubmit} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+                <div className="text-[10px] uppercase font-bold text-neutral-400">Tamu Menginap</div>
+                <div className="font-extrabold text-neutral-900">{extendModalBooking.guest_name}</div>
+                <div className="text-neutral-500">Check-out saat ini: <strong>{extendModalBooking.check_out_date}</strong></div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-neutral-700 mb-1">Tambah Berapa Malam? *</label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setExtraNights(n)}
+                      className={`flex-1 py-2 rounded-xl font-black text-xs transition-all ${
+                        extraNights === n ? 'bg-blue-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      +{n} Mlm
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-blue-950 font-semibold space-y-1">
+                <div className="flex justify-between">
+                  <span>Biaya Tambahan:</span>
+                  <span className="font-black text-blue-700">
+                    Rp {(extraNights * Number(extendModalBooking.rate_per_night || 0)).toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="text-[11px] text-blue-700">
+                  Tagihan akan otomatis ditambahkan ke Folio kamar.
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setExtendModalBooking(null)}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={extending}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs disabled:opacity-50"
+                >
+                  {extending ? 'Menyimpan...' : 'Perpanjang Sekarang'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Surcharge Modal (Early / Late Fee) */}
+      {surchargeModalBooking && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-neutral-200 animate-in zoom-in-95">
+            <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-3">
+              <div>
+                <span className="text-[11px] font-extrabold uppercase text-amber-700 tracking-wider">Penalti / Surcharge</span>
+                <h3 className="text-base font-black text-neutral-900">Biaya Early / Late Check-out</h3>
+              </div>
+              <button 
+                onClick={() => setSurchargeModalBooking(null)}
+                className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSurchargeSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-neutral-700 mb-1">Jenis Surcharge *</label>
+                <select
+                  value={surchargeType}
+                  onChange={(e) => setSurchargeType(e.target.value as any)}
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 font-semibold text-neutral-800"
+                >
+                  <option value="late_checkout">Late Check-out Surcharge</option>
+                  <option value="early_checkin">Early Check-in Surcharge</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-neutral-700 mb-1">Nominal Biaya (Rp) *</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="25000"
+                  required
+                  value={surchargeAmount}
+                  onChange={(e) => setSurchargeAmount(Number(e.target.value))}
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 font-bold text-amber-700 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-neutral-700 mb-1">Catatan Keterangan</label>
+                <input
+                  type="text"
+                  placeholder="Keterangan jam atau alasan..."
+                  value={surchargeNotes}
+                  onChange={(e) => setSurchargeNotes(e.target.value)}
+                  className="w-full bg-neutral-50 border border-neutral-300 rounded-xl px-3 py-2 font-medium"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setSurchargeModalBooking(null)}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={chargingSurcharge}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-xs disabled:opacity-50"
+                >
+                  {chargingSurcharge ? 'Menyimpan...' : 'Posting ke Folio'}
                 </button>
               </div>
             </form>
@@ -533,3 +959,7 @@ export const FrontDeskBookingView: React.FC<FrontDeskBookingViewProps> = ({ onOp
     </div>
   );
 };
+
+function emptyOrNull(val: any): boolean {
+  return val === null || val === undefined || val === 0 || val === '0' || val === '';
+}

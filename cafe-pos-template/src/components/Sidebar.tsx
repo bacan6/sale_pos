@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   CreditCard, Smartphone, UserCheck, Utensils, 
   Layers, Table, Coffee, ShieldCheck, LogOut,
-  Building2, Grid, Sparkles, Moon
+  Building2, Grid, Sparkles, Moon, CalendarDays,
+  ShoppingBag, Users, PackageSearch, Clock
 } from 'lucide-react';
 import type { TenantInfo, UserInfo } from '../types/auth';
 
 export type ActiveTab = 
   | 'cashier' | 'customer' | 'waitstaff' | 'kitchen' | 'products' | 'tables'
-  | 'hotel_rack' | 'hotel_front_desk' | 'hotel_folio' | 'hotel_housekeeping' | 'hotel_night_audit' | 'hotel_rooms'
+  | 'hotel_rack' | 'hotel_timeline' | 'hotel_front_desk' | 'hotel_folio' | 'hotel_services' | 'hotel_guests' | 'hotel_housekeeping' | 'hotel_lost_found' | 'hotel_shifts' | 'hotel_night_audit' | 'hotel_rooms'
   | 'saas_billing';
 
 interface SidebarProps {
@@ -55,9 +56,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
 
   const hotelNavItems = [
     { id: 'hotel_rack', label: 'Denah Kamar', desc: 'Room Rack & Status', icon: Grid },
-    { id: 'hotel_front_desk', label: 'Front Desk', desc: 'Reservasi & Tamu', icon: UserCheck },
+    { id: 'hotel_timeline', label: 'Timeline Kalender', desc: 'Gantt Chart Okupansi', icon: CalendarDays },
+    { id: 'hotel_front_desk', label: 'Front Desk', desc: 'Reservasi & Pindah', icon: UserCheck },
     { id: 'hotel_folio', label: 'Folio & Kasir', desc: 'Tagihan & Settle', icon: CreditCard },
+    { id: 'hotel_services', label: 'Layanan Hotel', desc: 'Katalog Add-on Ekstra', icon: ShoppingBag },
+    { id: 'hotel_guests', label: 'Tamu & CRM', desc: 'VIP Tier & Blacklist', icon: Users },
     { id: 'hotel_housekeeping', label: 'Housekeeping', desc: 'Kebersihan & Tugas', icon: Sparkles },
+    { id: 'hotel_lost_found', label: 'Lost & Found', desc: 'Barang Tertinggal', icon: PackageSearch },
+    { id: 'hotel_shifts', label: 'Shift Kasir', desc: 'Serah Terima Kasir', icon: Clock },
     { id: 'hotel_night_audit', label: 'Night Audit', desc: 'Okupansi & Tutup Buku', icon: Moon },
     { id: 'hotel_rooms', label: 'Kelola Kamar', desc: 'Tipe & Master Unit', icon: Layers },
   ];
@@ -66,10 +72,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
   const tenantStatus = tenant?.status || 'active';
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-neutral-900 text-white border-r border-neutral-800 p-4 justify-between shrink-0">
-      <div>
+    <aside className="hidden md:flex flex-col w-64 bg-neutral-900 text-white border-r border-neutral-800 p-4 justify-between shrink-0 h-full">
+      <div className="flex flex-col min-h-0 flex-1">
         {/* Brand & Tenant Info */}
-        <div className="flex items-center gap-3 px-2 py-3 mb-3 border-b border-neutral-800">
+        <div className="flex items-center gap-3 px-2 py-3 mb-3 border-b border-neutral-800 shrink-0">
           <div className="w-10 h-10 rounded-2xl bg-amber-600 flex items-center justify-center font-bold text-white shadow-md shrink-0">
             {businessMode === 'hotel' ? <Building2 className="w-5 h-5" /> : <Coffee className="w-5 h-5" />}
           </div>
@@ -95,7 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
 
         {/* Business Switcher Segmented Control (Hotel vs POS) */}
         {hasPos && hasHotel && (
-          <div className="mb-3 p-1 bg-neutral-800/80 rounded-xl flex items-center text-xs font-bold border border-neutral-700/60">
+          <div className="mb-3 p-1 bg-neutral-800/80 rounded-xl flex items-center text-xs font-bold border border-neutral-700/60 shrink-0">
             <button
               onClick={() => {
                 setBusinessMode('pos');
@@ -128,17 +134,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
         )}
 
         {/* Module Label */}
-        <div className="px-2 mb-1.5 flex items-center justify-between">
+        <div className="px-2 mb-1.5 flex items-center justify-between shrink-0">
           <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500">
-            {businessMode === 'hotel' ? 'MODUL HOTEL & PENGINAPAN' : 'MODUL CAFE & RESTO POS'}
+            {businessMode === 'hotel' ? 'MODUL HOTEL & PMS' : 'MODUL CAFE & RESTO POS'}
           </span>
           <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.2 rounded">
-            {businessMode === 'hotel' ? 'PMS V1' : 'POS V1'}
+            {businessMode === 'hotel' ? 'PMS V2' : 'POS V1'}
           </span>
         </div>
 
         {/* Navigation list */}
-        <nav className="space-y-1">
+        <nav className="space-y-1 overflow-y-auto flex-1 pr-1">
           {activeNavItems.map(item => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -146,15 +152,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as ActiveTab)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all group ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all group ${
                   isActive 
                     ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-600/30' 
                     : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60 font-medium'
                 }`}
               >
-                <Icon className={`w-4 h-4 transition-transform group-hover:scale-105 ${isActive ? 'text-white' : 'text-neutral-400'}`} />
+                <Icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-105 ${isActive ? 'text-white' : 'text-neutral-400'}`} />
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs block leading-tight">{item.label}</span>
+                  <span className="text-xs block leading-tight truncate">{item.label}</span>
                   <span className={`text-[9px] block mt-0.5 truncate ${isActive ? 'text-amber-100' : 'text-neutral-500'}`}>
                     {item.desc}
                   </span>
@@ -167,15 +173,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
           <div className="pt-2 border-t border-neutral-800 mt-2">
             <button
               onClick={() => setActiveTab('saas_billing')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all group ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all group ${
                 activeTab === 'saas_billing'
                   ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-600/30'
                   : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60 font-medium'
               }`}
             >
-              <ShieldCheck className={`w-4 h-4 ${activeTab === 'saas_billing' ? 'text-white' : 'text-neutral-400'}`} />
+              <ShieldCheck className={`w-4 h-4 shrink-0 ${activeTab === 'saas_billing' ? 'text-white' : 'text-neutral-400'}`} />
               <div className="flex-1 min-w-0">
-                <span className="text-xs block leading-tight">Langganan SaaS</span>
+                <span className="text-xs block leading-tight truncate">Langganan SaaS</span>
                 <span className={`text-[9px] block mt-0.5 truncate ${activeTab === 'saas_billing' ? 'text-amber-100' : 'text-neutral-500'}`}>
                   Paket POS, Hotel & Combo
                 </span>
@@ -186,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
       </div>
 
       {/* User info & Logout */}
-      <div className="border-t border-neutral-800 pt-3 px-1 space-y-2">
+      <div className="border-t border-neutral-800 pt-3 px-1 space-y-2 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-xs font-bold text-amber-500 shrink-0">
