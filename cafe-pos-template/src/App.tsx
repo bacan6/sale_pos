@@ -27,6 +27,11 @@ import { LaundryCashierView } from './views/laundry/LaundryCashierView';
 import { LaundryKanbanView } from './views/laundry/LaundryKanbanView';
 import { LaundryRackView } from './views/laundry/LaundryRackView';
 import { LaundryServiceManagementView } from './views/laundry/LaundryServiceManagementView';
+import { BanquetCalendarView } from './views/banquet/BanquetCalendarView';
+import { BanquetBookingView } from './views/banquet/BanquetBookingView';
+import { BanquetRoomManagementView } from './views/banquet/BanquetRoomManagementView';
+import { ParkingCashierView } from './views/parking/ParkingCashierView';
+import { SmartLockManagementView } from './views/parking/SmartLockManagementView';
 import type { HotelRoom } from './types/hotel';
 import { Monitor, Tablet, Smartphone, Coffee, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { authApi, getStoredToken, getStoredTenant, getStoredUser } from './services/api';
@@ -279,6 +284,13 @@ export default function App() {
                 {activeTab === 'laundry_kanban' && <LaundryKanbanView />}
                 {activeTab === 'laundry_racks' && <LaundryRackView />}
                 {activeTab === 'laundry_services' && <LaundryServiceManagementView />}
+                {activeTab === 'banquet_calendar' && (
+                  <BanquetCalendarView onOpenBookingModal={() => setActiveTab('banquet_bookings')} />
+                )}
+                {activeTab === 'banquet_bookings' && <BanquetBookingView />}
+                {activeTab === 'banquet_rooms' && <BanquetRoomManagementView />}
+                {activeTab === 'parking_cashier' && <ParkingCashierView />}
+                {activeTab === 'smart_locks' && <SmartLockManagementView />}
                 {activeTab === 'saas_billing' && (
                   <SaaSBillingView 
                     tenant={tenant} 

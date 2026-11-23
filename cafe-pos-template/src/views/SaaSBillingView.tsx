@@ -200,7 +200,7 @@ export const SaaSBillingView: React.FC<SaaSBillingViewProps> = ({ tenant, onTena
             <span className="text-[11px] font-bold text-neutral-400">1 Tenant • Multi-Bisnis</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {/* POS Solo */}
             <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
               tenant?.plan === 'pos_starter' ? 'border-amber-600 bg-amber-50/30 ring-2 ring-amber-600/20' : 'border-neutral-200 bg-neutral-50/50'
@@ -265,12 +265,12 @@ export const SaaSBillingView: React.FC<SaaSBillingViewProps> = ({ tenant, onTena
             }`}>
               <div>
                 <span className="text-[10px] font-black uppercase text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full inline-block mb-1">
-                  ⭐ Paling Lengkap (All-in-One)
+                  ⭐ Combo (POS + Hotel)
                 </span>
-                <h4 className="text-base font-black text-neutral-900">Combo Pro (Hotel + POS)</h4>
+                <h4 className="text-base font-black text-neutral-900">Combo Pro</h4>
                 <p className="text-xs text-neutral-500 mt-0.5">Semua fitur Hotel PMS + Cafe POS + Integrasi Charge to Room</p>
                 <div className="my-3 text-lg font-black text-amber-700">
-                  Rp 500.000 <span className="text-xs text-neutral-400 font-normal">/ bln</span>
+                  Rp 650.000 <span className="text-xs text-neutral-400 font-normal">/ bln</span>
                 </div>
                 <ul className="text-xs space-y-1 text-neutral-700 mb-4 font-medium">
                   <li className="text-emerald-700 font-bold">✓ Modul Cafe POS Lengkap</li>
@@ -284,7 +284,94 @@ export const SaaSBillingView: React.FC<SaaSBillingViewProps> = ({ tenant, onTena
                 onClick={() => handleSimulatePlan('combo_pro')}
                 className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 disabled:bg-neutral-200 disabled:text-neutral-500 text-white transition-all shadow-sm"
               >
-                {tenant?.plan === 'combo_pro' ? '✓ Paket Aktif (Lengkap)' : 'Aktifkan Combo Pro'}
+                {tenant?.plan === 'combo_pro' ? '✓ Paket Aktif' : 'Aktifkan Combo Pro'}
+              </button>
+            </div>
+
+            {/* Banquet Solo */}
+            <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+              tenant?.plan === 'banquet_solo' ? 'border-amber-600 bg-amber-50/30 ring-2 ring-amber-600/20' : 'border-neutral-200 bg-neutral-50/50'
+            }`}>
+              <div>
+                <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full inline-block mb-1">
+                  Khusus MICE & Event
+                </span>
+                <h4 className="text-base font-black text-neutral-900">Banquet Solo</h4>
+                <p className="text-xs text-neutral-500 mt-0.5">Ruang Rapat, Hall, BEO Lifecycle & Paket Meeting</p>
+                <div className="my-3 text-lg font-black text-amber-800">
+                  Rp 250.000 <span className="text-xs text-neutral-400 font-normal">/ bln</span>
+                </div>
+                <ul className="text-xs space-y-1 text-neutral-600 mb-4 font-medium">
+                  <li>✓ Denah & Timeline Slot Ruangan</li>
+                  <li>✓ BEO & Deteksi Bentrok Jadwal</li>
+                  <li>✓ Paket Catering & Equipment</li>
+                  <li>✓ 3 Perangkat Kasir/Admin</li>
+                </ul>
+              </div>
+              <button
+                disabled={loading || tenant?.plan === 'banquet_solo'}
+                onClick={() => handleSimulatePlan('banquet_solo')}
+                className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-500 text-white transition-all shadow-xs"
+              >
+                {tenant?.plan === 'banquet_solo' ? '✓ Paket Aktif' : 'Pilih Paket Banquet'}
+              </button>
+            </div>
+
+            {/* Parking Solo */}
+            <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+              tenant?.plan === 'parking_solo' ? 'border-cyan-600 bg-cyan-50/30 ring-2 ring-cyan-600/20' : 'border-neutral-200 bg-neutral-50/50'
+            }`}>
+              <div>
+                <span className="text-[10px] font-black uppercase text-cyan-700 bg-cyan-100 px-2 py-0.5 rounded-full inline-block mb-1">
+                  Khusus Parkir & Barrier
+                </span>
+                <h4 className="text-base font-black text-neutral-900">Smart Parking Solo</h4>
+                <p className="text-xs text-neutral-500 mt-0.5">Tiket Kendaraan, Palang Barrier Gate & Smart Lock IoT</p>
+                <div className="my-3 text-lg font-black text-cyan-800">
+                  Rp 200.000 <span className="text-xs text-neutral-400 font-normal">/ bln</span>
+                </div>
+                <ul className="text-xs space-y-1 text-neutral-600 mb-4 font-medium">
+                  <li>✓ Tiket Masuk & Hitung Durasi Parkir</li>
+                  <li>✓ Kendali Palang Gate Masuk/Keluar</li>
+                  <li>✓ Smart Lock Kunci Pintu & Passcode</li>
+                  <li>✓ 3 Perangkat Gate/Pos</li>
+                </ul>
+              </div>
+              <button
+                disabled={loading || tenant?.plan === 'parking_solo'}
+                onClick={() => handleSimulatePlan('parking_solo')}
+                className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-500 text-white transition-all shadow-xs"
+              >
+                {tenant?.plan === 'parking_solo' ? '✓ Paket Aktif' : 'Pilih Paket Parking'}
+              </button>
+            </div>
+
+            {/* Enterprise Hospitality All Modules */}
+            <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+              tenant?.plan === 'hospitality_enterprise' || tenant?.plan === 'enterprise' ? 'border-indigo-600 bg-indigo-50/30 ring-2 ring-indigo-600/30' : 'border-neutral-200 bg-neutral-50/50'
+            }`}>
+              <div>
+                <span className="text-[10px] font-black uppercase text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full inline-block mb-1">
+                  👑 All-In-One Enterprise
+                </span>
+                <h4 className="text-base font-black text-neutral-900">Hospitality Enterprise</h4>
+                <p className="text-xs text-neutral-500 mt-0.5">POS + Hotel + Laundry + Banquet + Smart Parking + Akuntansi</p>
+                <div className="my-3 text-lg font-black text-indigo-800">
+                  Rp 1.800.000 <span className="text-xs text-neutral-400 font-normal">/ bln</span>
+                </div>
+                <ul className="text-xs space-y-1 text-neutral-700 mb-4 font-medium">
+                  <li className="font-bold text-indigo-900">✓ Semua Modul Lengkap & Bebas Akses</li>
+                  <li>✓ Integrasi Kamar, BEO, Parkir Tamu Free</li>
+                  <li>✓ Auto-Posting Jurnal Akuntansi</li>
+                  <li>✓ Hingga 50 Perangkat Terdaftar</li>
+                </ul>
+              </div>
+              <button
+                disabled={loading || tenant?.plan === 'hospitality_enterprise' || tenant?.plan === 'enterprise'}
+                onClick={() => handleSimulatePlan('hospitality_enterprise')}
+                className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:bg-neutral-200 disabled:text-neutral-500 text-white transition-all shadow-sm"
+              >
+                {tenant?.plan === 'hospitality_enterprise' || tenant?.plan === 'enterprise' ? '✓ Paket Aktif (Semua Modul)' : 'Aktifkan Enterprise Lengkap'}
               </button>
             </div>
           </div>

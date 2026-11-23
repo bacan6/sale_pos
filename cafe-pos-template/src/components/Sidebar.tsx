@@ -3,7 +3,8 @@ import {
   CreditCard, Smartphone, UserCheck, Utensils, 
   Layers, Table, Coffee, ShieldCheck, LogOut,
   Building2, Grid, Sparkles, Moon, CalendarDays,
-  ShoppingBag, Users, PackageSearch, Clock, Shirt
+  ShoppingBag, Users, PackageSearch, Clock, Shirt,
+  Car, Key, FileText
 } from 'lucide-react';
 import type { TenantInfo, UserInfo } from '../types/auth';
 
@@ -11,6 +12,8 @@ export type ActiveTab =
   | 'cashier' | 'customer' | 'waitstaff' | 'kitchen' | 'products' | 'tables' | 'pos_inventory' | 'pos_shifts'
   | 'hotel_rack' | 'hotel_timeline' | 'hotel_front_desk' | 'hotel_folio' | 'hotel_services' | 'hotel_guests' | 'hotel_housekeeping' | 'hotel_lost_found' | 'hotel_shifts' | 'hotel_night_audit' | 'hotel_rooms'
   | 'laundry_cashier' | 'laundry_kanban' | 'laundry_racks' | 'laundry_services'
+  | 'banquet_calendar' | 'banquet_bookings' | 'banquet_rooms'
+  | 'parking_cashier' | 'smart_locks'
   | 'saas_billing';
 
 interface SidebarProps {
@@ -26,10 +29,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
   const hasPos = tenantModules === 'combo' || tenantModules === 'pos' || tenantModules === 'all';
   const hasHotel = tenantModules === 'combo' || tenantModules === 'hotel' || tenantModules === 'all';
   const hasLaundry = tenantModules === 'combo' || tenantModules === 'all' || tenantModules.includes('laundry');
+  const hasBanquet = tenantModules === 'all' || tenantModules.includes('banquet');
+  const hasParking = tenantModules === 'all' || tenantModules.includes('parking');
 
-  const [businessMode, setBusinessMode] = useState<'pos' | 'hotel' | 'laundry'>(
-    hasHotel && !hasPos && !hasLaundry ? 'hotel' :
-    hasLaundry && !hasPos && !hasHotel ? 'laundry' : 'pos'
+  const [businessMode, setBusinessMode] = useState<'pos' | 'hotel' | 'laundry' | 'banquet' | 'parking'>(
+    hasHotel && !hasPos && !hasLaundry && !hasBanquet && !hasParking ? 'hotel' :
+    hasLaundry && !hasPos && !hasHotel && !hasBanquet && !hasParking ? 'laundry' :
+    hasBanquet && !hasPos && !hasHotel && !hasLaundry && !hasParking ? 'banquet' :
+    hasParking && !hasPos && !hasHotel && !hasLaundry && !hasBanquet ? 'parking' : 'pos'
   );
 
   useEffect(() => {
@@ -37,6 +44,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
       setBusinessMode('hotel');
     } else if (activeTab.startsWith('laundry_')) {
       setBusinessMode('laundry');
+    } else if (activeTab.startsWith('banquet_')) {
+      setBusinessMode('banquet');
+    } else if (activeTab.startsWith('parking_') || activeTab === 'smart_locks') {
+      setBusinessMode('parking');
     } else if (['cashier', 'customer', 'waitstaff', 'kitchen', 'products', 'tables', 'pos_inventory', 'pos_shifts'].includes(activeTab)) {
       setBusinessMode('pos');
     }
@@ -87,7 +98,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
     { id: 'laundry_services', label: 'Kelola Layanan', desc: 'Tarif Kiloan & Satuan', icon: Layers },
   ];
 
-  const activeNavItems = businessMode === 'hotel' ? hotelNavItems : businessMode === 'laundry' ? laundryNavItems : posNavItems;
+  const banquetNavItems = [
+    { id: 'banquet_calendar', label: 'Denah & Kalender', desc: 'Timeline & Okupansi Ruang', icon: CalendarDays },
+    { id: 'banquet_bookings', label: 'BEO & Reservasi', desc: 'Event Order & DP Status', icon: FileText },
+    { id: 'banquet_rooms', label: 'Ruangan & Paket', desc: 'Kapasitas & Fasilitas', icon: Layers },
+  ];
+
+  const parkingNavItems = [
+    { id: 'parking_cashier', label: 'Pos Parkir & Tiket', desc: 'Gerbang & Kasir Tiket', icon: Car },
+    { id: 'smart_locks', label: 'Smart Lock & IoT', desc: 'Kunci Akses & Gate Relay', icon: Key },
+  ];
+
+  const activeNavItems = 
+    businessMode === 'hotel' ? hotelNavItems : 
+    businessMode === 'laundry' ? laundryNavItems : 
+    businessMode === 'banquet' ? banquetNavItems :
+    businessMode === 'parking' ? parkingNavItems : posNavItems;
   const tenantStatus = tenant?.status || 'active';
 
   return (
@@ -97,10 +123,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
         <div className="flex items-center gap-3 px-2 py-3 mb-3 border-b border-neutral-800 shrink-0">
           <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white shadow-md shrink-0 ${
             businessMode === 'hotel' ? 'bg-amber-600' :
-            businessMode === 'laundry' ? 'bg-cyan-600' : 'bg-amber-600'
+            businessMode === 'laundry' ? 'bg-cyan-600' :
+            businessMode === 'banquet' ? 'bg-amber-600' :
+            businessMode === 'parking' ? 'bg-cyan-600' : 'bg-amber-600'
           }`}>
             {businessMode === 'hotel' ? <Building2 className="w-5 h-5" /> :
              businessMode === 'laundry' ? <Shirt className="w-5 h-5" /> :
+             businessMode === 'banquet' ? <CalendarDays className="w-5 h-5" /> :
+             businessMode === 'parking' ? <Car className="w-5 h-5" /> :
              <Coffee className="w-5 h-5" />}
           </div>
           <div className="flex-1 min-w-0">
@@ -123,9 +153,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
           </div>
         </div>
 
-        {/* Business Switcher Segmented Control (Cafe vs Hotel vs Laundry) */}
-        {((hasPos ? 1 : 0) + (hasHotel ? 1 : 0) + (hasLaundry ? 1 : 0)) > 1 && (
-          <div className="mb-3 p-1 bg-neutral-800/80 rounded-xl flex items-center text-xs font-bold border border-neutral-700/60 shrink-0 gap-1">
+        {/* Business Switcher Segmented Control (Multi-Business Selector) */}
+        {((hasPos ? 1 : 0) + (hasHotel ? 1 : 0) + (hasLaundry ? 1 : 0) + (hasBanquet ? 1 : 0) + (hasParking ? 1 : 0)) > 1 && (
+          <div className="mb-3 p-1 bg-neutral-800/80 rounded-xl flex flex-wrap items-center text-xs font-bold border border-neutral-700/60 shrink-0 gap-1">
             {hasPos && (
               <button
                 onClick={() => {
@@ -139,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
                 }`}
               >
                 <Coffee className="w-3 h-3 shrink-0" />
-                <span className="truncate text-[11px]">Cafe</span>
+                <span className="truncate text-[10px]">Cafe</span>
               </button>
             )}
             {hasHotel && (
@@ -155,7 +185,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
                 }`}
               >
                 <Building2 className="w-3 h-3 shrink-0" />
-                <span className="truncate text-[11px]">Hotel</span>
+                <span className="truncate text-[10px]">Hotel</span>
               </button>
             )}
             {hasLaundry && (
@@ -171,7 +201,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
                 }`}
               >
                 <Shirt className="w-3 h-3 shrink-0" />
-                <span className="truncate text-[11px]">Laundry</span>
+                <span className="truncate text-[10px]">Laundry</span>
+              </button>
+            )}
+            {hasBanquet && (
+              <button
+                onClick={() => {
+                  setBusinessMode('banquet');
+                  setActiveTab('banquet_calendar');
+                }}
+                className={`flex-1 py-1 px-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                  businessMode === 'banquet'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <CalendarDays className="w-3 h-3 shrink-0" />
+                <span className="truncate text-[10px]">Banquet</span>
+              </button>
+            )}
+            {hasParking && (
+              <button
+                onClick={() => {
+                  setBusinessMode('parking');
+                  setActiveTab('parking_cashier');
+                }}
+                className={`flex-1 py-1 px-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                  businessMode === 'parking'
+                    ? 'bg-cyan-600 text-white shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Car className="w-3 h-3 shrink-0" />
+                <span className="truncate text-[10px]">Parkir</span>
               </button>
             )}
           </div>
@@ -180,10 +242,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
         {/* Module Label */}
         <div className="px-2 mb-1.5 flex items-center justify-between shrink-0">
           <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500">
-            {businessMode === 'hotel' ? 'MODUL HOTEL & PMS' : 'MODUL CAFE & RESTO POS'}
+            {businessMode === 'hotel' ? 'MODUL HOTEL & PMS' :
+             businessMode === 'laundry' ? 'MODUL LAUNDRY POS' :
+             businessMode === 'banquet' ? 'MODUL BANQUET & MEETING' :
+             businessMode === 'parking' ? 'MODUL SMART PARKING' : 'MODUL CAFE & RESTO POS'}
           </span>
           <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.2 rounded">
-            {businessMode === 'hotel' ? 'PMS V2' : 'POS V1'}
+            {businessMode === 'parking' ? 'IoT V1' : 'MODULAR'}
           </span>
         </div>
 

@@ -69,6 +69,24 @@ return [
                 'max_devices' => 15,
                 'price' => 650000,
             ],
+            'banquet_solo' => [
+                'name' => 'Banquet & Meeting Room Solo',
+                'modules' => 'banquet',
+                'max_devices' => 3,
+                'price' => 250000,
+            ],
+            'parking_solo' => [
+                'name' => 'Smart Parking & Gate Solo',
+                'modules' => 'parking',
+                'max_devices' => 3,
+                'price' => 200000,
+            ],
+            'hospitality_enterprise' => [
+                'name' => 'Hospitality & Venue Enterprise (All Modules)',
+                'modules' => 'all',
+                'max_devices' => 50,
+                'price' => 1800000,
+            ],
             'enterprise' => [
                 'name' => 'Enterprise Unlimited (Semua Modul)',
                 'modules' => 'all',
