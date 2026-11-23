@@ -2,9 +2,13 @@ import React, { useState } from 'react';
 import { 
   Search, Plus, Minus, Trash2, CreditCard, Banknote, QrCode, 
   Printer, Percent, ShoppingBag, Coffee, X,
-  Clock, CheckCircle, FileText, Send, Bed
+  Clock, CheckCircle, FileText, Send, Bed,
+  Scissors, ArrowRightLeft, AlertTriangle
 } from 'lucide-react';
 import { getStoredTenant } from '../services/api';
+import { posApi } from '../services/posApi';
+import { SplitBillModal } from '../components/SplitBillModal';
+import { TableTransferModal } from '../components/TableTransferModal';
 import type { Product, TableItem } from '../data/mockData';
 import { INITIAL_PRODUCTS, CATEGORIES, formatCurrency, INITIAL_TABLES } from '../data/mockData';
 
@@ -99,6 +103,19 @@ export const CashierView: React.FC = () => {
   const [cashTendered, setCashTendered] = useState<number>(100000);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [kitchenSentToast, setKitchenSentToast] = useState(false);
+
+  // Cafe v2 State
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [activeShift, setActiveShift] = useState<any>(null);
+
+  React.useEffect(() => {
+    posApi.getCurrentShift().then(res => {
+      if (res?.has_active_shift) {
+        setActiveShift(res.shift);
+      }
+    }).catch(() => {});
+  }, []);
 
   const filteredProducts = products.filter(p => {
     const matchCat = selectedCategory === 'All' || p.category === selectedCategory;
@@ -229,18 +246,44 @@ export const CashierView: React.FC = () => {
               </div>
 
               {orderType === 'Dine-In' && (
-                <select 
-                  value={selectedTable} 
-                  onChange={(e) => setSelectedTable(e.target.value)}
-                  className="bg-neutral-100 text-neutral-800 text-xs font-bold py-1.5 px-3 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shrink-0"
-                >
-                  {tables.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.zone})
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select 
+                    value={selectedTable} 
+                    onChange={(e) => setSelectedTable(e.target.value)}
+                    className="bg-neutral-100 text-neutral-800 text-xs font-bold py-1.5 px-3 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shrink-0"
+                  >
+                    {tables.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.zone})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowTransferModal(true)}
+                    className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-bold py-1.5 px-2.5 rounded-xl flex items-center gap-1 shrink-0"
+                    title="Pindah atau Gabung Meja"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Pindah/Gabung</span>
+                  </button>
+                </>
               )}
+
+              {/* Shift status pill */}
+              <div className="hidden xl:flex items-center">
+                {activeShift ? (
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Shift: {activeShift.user_name}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Shift Belum Dibuka</span>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-xl shrink-0">
@@ -535,24 +578,34 @@ export const CashierView: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="grid grid-cols-3 gap-1.5 pt-1">
             <button 
               disabled={cart.length === 0}
               onClick={handleSendToKitchen}
-              className="bg-neutral-100 hover:bg-neutral-200 active:scale-98 disabled:opacity-50 text-neutral-800 font-bold py-2.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs border border-neutral-200"
-              title="Kirim pesanan ke dapur tanpa langsung bayar (Open Bill)"
+              className="bg-neutral-100 hover:bg-neutral-200 active:scale-98 disabled:opacity-50 text-neutral-800 font-bold py-2.5 px-1 rounded-xl transition-all flex items-center justify-center gap-1 text-[11px] border border-neutral-200"
+              title="Kirim pesanan ke dapur (Open Bill)"
             >
-              <Send className="w-3.5 h-3.5 text-amber-700" />
-              <span>Kirim Kitchen</span>
+              <Send className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span>Kitchen</span>
+            </button>
+
+            <button 
+              disabled={cart.length === 0}
+              onClick={() => setShowSplitModal(true)}
+              className="bg-neutral-100 hover:bg-neutral-200 active:scale-98 disabled:opacity-50 text-neutral-800 font-bold py-2.5 px-1 rounded-xl transition-all flex items-center justify-center gap-1 text-[11px] border border-neutral-200"
+              title="Pisahkan tagihan per item atau bagi rata"
+            >
+              <Scissors className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>Split Bill</span>
             </button>
 
             <button 
               disabled={cart.length === 0}
               onClick={handlePrintProforma}
-              className="bg-neutral-100 hover:bg-neutral-200 active:scale-98 disabled:opacity-50 text-neutral-800 font-bold py-2.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs border border-neutral-200"
+              className="bg-neutral-100 hover:bg-neutral-200 active:scale-98 disabled:opacity-50 text-neutral-800 font-bold py-2.5 px-1 rounded-xl transition-all flex items-center justify-center gap-1 text-[11px] border border-neutral-200"
               title="Cetak struk tagihan sementara sebelum bayar"
             >
-              <Printer className="w-3.5 h-3.5 text-neutral-600" />
+              <Printer className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
               <span>Contoh Struk</span>
             </button>
           </div>
@@ -886,6 +939,65 @@ export const CashierView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Split Bill Modal */}
+      {showSplitModal && (
+        <SplitBillModal
+          orderNumber={activeOrderNumber}
+          tableName={currentTableName}
+          items={cart}
+          total={total}
+          onClose={() => setShowSplitModal(false)}
+          onSplitConfirm={(result) => {
+            setShowSplitModal(false);
+            if (result.splitType === 'by_item' && result.splitItems) {
+              setCart(prev => {
+                let updated = [...prev];
+                result.splitItems!.forEach(sp => {
+                  updated = updated.map(item => {
+                    if (item.product.id === sp.product.id) {
+                      const remain = item.qty - sp.qty;
+                      return remain > 0 ? { ...item, qty: remain } : null;
+                    }
+                    return item;
+                  }).filter(Boolean) as typeof prev;
+                });
+                return updated;
+              });
+              alert('Berhasil memisahkan item ke tagihan split baru!');
+            } else if (result.splitType === 'equal' && result.splitShares) {
+              alert(`Tagihan berhasil dibagi rata menjadi ${result.splitShares.length} bagian @ ${formatCurrency(result.splitShares[0].amount)}.`);
+            }
+          }}
+        />
+      )}
+
+      {/* Table Transfer & Merge Modal */}
+      {showTransferModal && (
+        <TableTransferModal
+          currentTable={{
+            id: selectedTable,
+            name: currentTableName,
+            capacity: 4,
+            zone: 'Indoor',
+            status: 'occupied',
+            activeOrderNumber: activeOrderNumber,
+            activeOrderTotal: total,
+          }}
+          allTables={tables}
+          onClose={() => setShowTransferModal(false)}
+          onMoveSuccess={(toId, toName) => {
+            setShowTransferModal(false);
+            setSelectedTable(toId);
+            alert(`Pesanan #${activeOrderNumber} berhasil dipindahkan ke ${toName}`);
+          }}
+          onMergeSuccess={(toId, toName) => {
+            setShowTransferModal(false);
+            setSelectedTable(toId);
+            alert(`Pesanan #${activeOrderNumber} berhasil digabungkan ke ${toName}`);
+          }}
+        />
       )}
     </div>
   );

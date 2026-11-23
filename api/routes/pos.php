@@ -12,6 +12,11 @@ use App\Modules\Pos\Controllers\OrderController;
 use App\Modules\Pos\Controllers\KitchenTicketController;
 use App\Modules\Pos\Controllers\PaymentController;
 use App\Modules\Pos\Controllers\SyncController;
+use App\Modules\Pos\Controllers\IngredientController;
+use App\Modules\Pos\Controllers\RecipeController;
+use App\Modules\Pos\Controllers\TableTransferController;
+use App\Modules\Pos\Controllers\OrderSplitController;
+use App\Modules\Pos\Controllers\ShiftController;
 
 $posAuth = [HttpsEnforce::class, BearerAuth::class, PosModuleGuard::class];
 
@@ -100,3 +105,31 @@ $router->post('/v1/pos/sync/push', [SyncController::class, 'push'], $posAuth);
 $router->get('/v1/pos/sync/pull', [SyncController::class, 'pull'], $posAuth);
 $router->post('/v1/sync/push', [SyncController::class, 'push'], $posAuth);
 $router->get('/v1/sync/pull', [SyncController::class, 'pull'], $posAuth);
+
+// 9. Cafe v2: Ingredients & Inventory BOM
+$router->get('/v1/pos/ingredients', [IngredientController::class, 'index'], $posAuth);
+$router->get('/v1/pos/ingredients/{id}', [IngredientController::class, 'show'], $posAuth);
+$router->post('/v1/pos/ingredients', [IngredientController::class, 'store'], $posAuth);
+$router->put('/v1/pos/ingredients/{id}', [IngredientController::class, 'update'], $posAuth);
+$router->delete('/v1/pos/ingredients/{id}', [IngredientController::class, 'destroy'], $posAuth);
+$router->post('/v1/pos/ingredients/{id}/adjust', [IngredientController::class, 'adjust'], $posAuth);
+$router->get('/v1/pos/inventory-logs', [IngredientController::class, 'inventoryLogs'], $posAuth);
+
+// 10. Cafe v2: Product Recipes (BOM)
+$router->get('/v1/pos/products/{id}/recipes', [RecipeController::class, 'getByProduct'], $posAuth);
+$router->post('/v1/pos/products/{id}/recipes', [RecipeController::class, 'save'], $posAuth);
+
+// 11. Cafe v2: Table Operations (Move & Merge)
+$router->post('/v1/pos/tables/move', [TableTransferController::class, 'move'], $posAuth);
+$router->post('/v1/pos/tables/merge', [TableTransferController::class, 'merge'], $posAuth);
+
+// 12. Cafe v2: Order Split Bill
+$router->post('/v1/pos/orders/{id}/split-bill', [OrderSplitController::class, 'splitBill'], $posAuth);
+
+// 13. Cafe v2: Cashier Shift & Cash Drawer Management
+$router->get('/v1/pos/shifts/current', [ShiftController::class, 'current'], $posAuth);
+$router->post('/v1/pos/shifts/open', [ShiftController::class, 'open'], $posAuth);
+$router->post('/v1/pos/shifts/cash-movement', [ShiftController::class, 'cashMovement'], $posAuth);
+$router->post('/v1/pos/shifts/close', [ShiftController::class, 'close'], $posAuth);
+$router->get('/v1/pos/shifts', [ShiftController::class, 'index'], $posAuth);
+

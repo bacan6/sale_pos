@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { 
   Table, Users, Plus, CheckCircle, 
-  CreditCard, X 
+  CreditCard, X, ArrowRightLeft 
 } from 'lucide-react';
 import type { TableItem } from '../data/mockData';
 import { INITIAL_TABLES, formatCurrency } from '../data/mockData';
+import { TableTransferModal } from '../components/TableTransferModal';
 
 export const TableManagementView: React.FC = () => {
   const [tables, setTables] = useState<TableItem[]>(INITIAL_TABLES);
@@ -14,6 +15,10 @@ export const TableManagementView: React.FC = () => {
   const [newTableName, setNewTableName] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState(4);
   const [newTableZone, setNewTableZone] = useState<'Indoor' | 'Outdoor' | 'VIP Area'>('Indoor');
+
+  // Cafe v2 Transfer Modal
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedTransferTable, setSelectedTransferTable] = useState<TableItem | null>(null);
 
   const filteredTables = tables.filter(t => selectedZone === 'All' || t.zone === selectedZone);
 
@@ -161,17 +166,30 @@ export const TableManagementView: React.FC = () => {
                   )}
                 </div>
 
-                <div className="pt-3 mt-3 border-t border-neutral-100 flex items-center justify-between gap-1 text-[11px]">
+                <div className="pt-3 mt-3 border-t border-neutral-100 flex items-center justify-between gap-1.5 text-[11px]">
                   <select 
                     value={t.status}
                     onChange={(e) => updateTableStatus(t.id, e.target.value as TableItem['status'])}
-                    className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold py-1.5 px-2 rounded-xl border-none outline-none cursor-pointer"
+                    className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold py-1.5 px-2 rounded-xl border-none outline-none cursor-pointer"
                   >
                     <option value="available">🟢 Set Kosong</option>
                     <option value="occupied">🔴 Set Terisi</option>
                     <option value="billing">🔵 Set Minta Billing</option>
                     <option value="reserved">🟡 Set Reserved</option>
                   </select>
+                  {isOccupied && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTransferTable(t);
+                        setShowTransferModal(true);
+                      }}
+                      className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl border border-amber-200 shrink-0"
+                      title="Pindah / Gabung Meja"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -245,6 +263,56 @@ export const TableManagementView: React.FC = () => {
             </div>
           </form>
         </div>
+      )}
+
+      {showTransferModal && selectedTransferTable && (
+        <TableTransferModal
+          currentTable={selectedTransferTable}
+          allTables={tables}
+          onClose={() => {
+            setShowTransferModal(false);
+            setSelectedTransferTable(null);
+          }}
+          onMoveSuccess={(toId, toName) => {
+            setShowTransferModal(false);
+            setTables(prev => prev.map(t => {
+              if (t.id === selectedTransferTable.id) {
+                return { ...t, status: 'available', activeOrderNumber: undefined, activeOrderTotal: 0, guestCount: 0 };
+              }
+              if (t.id === toId) {
+                return { 
+                  ...t, 
+                  status: 'occupied', 
+                  activeOrderNumber: selectedTransferTable.activeOrderNumber, 
+                  activeOrderTotal: selectedTransferTable.activeOrderTotal,
+                  guestCount: selectedTransferTable.guestCount,
+                };
+              }
+              return t;
+            }));
+            setSelectedTransferTable(null);
+            alert(`Berhasil memindahkan pesanan ke ${toName}`);
+          }}
+          onMergeSuccess={(toId, toName) => {
+            setShowTransferModal(false);
+            setTables(prev => prev.map(t => {
+              if (t.id === selectedTransferTable.id) {
+                return { ...t, status: 'available', activeOrderNumber: undefined, activeOrderTotal: 0, guestCount: 0 };
+              }
+              if (t.id === toId) {
+                return { 
+                  ...t, 
+                  status: 'occupied', 
+                  activeOrderTotal: (t.activeOrderTotal || 0) + (selectedTransferTable.activeOrderTotal || 0),
+                  guestCount: (t.guestCount || 0) + (selectedTransferTable.guestCount || 0),
+                };
+              }
+              return t;
+            }));
+            setSelectedTransferTable(null);
+            alert(`Berhasil menggabungkan pesanan ke ${toName}`);
+          }}
+        />
       )}
     </div>
   );

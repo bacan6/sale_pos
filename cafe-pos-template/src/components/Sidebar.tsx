@@ -8,7 +8,7 @@ import {
 import type { TenantInfo, UserInfo } from '../types/auth';
 
 export type ActiveTab = 
-  | 'cashier' | 'customer' | 'waitstaff' | 'kitchen' | 'products' | 'tables'
+  | 'cashier' | 'customer' | 'waitstaff' | 'kitchen' | 'products' | 'tables' | 'pos_inventory' | 'pos_shifts'
   | 'hotel_rack' | 'hotel_timeline' | 'hotel_front_desk' | 'hotel_folio' | 'hotel_services' | 'hotel_guests' | 'hotel_housekeeping' | 'hotel_lost_found' | 'hotel_shifts' | 'hotel_night_audit' | 'hotel_rooms'
   | 'saas_billing';
 
@@ -30,7 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
   useEffect(() => {
     if (activeTab.startsWith('hotel_')) {
       setBusinessMode('hotel');
-    } else if (['cashier', 'customer', 'waitstaff', 'kitchen', 'products', 'tables'].includes(activeTab)) {
+    } else if (['cashier', 'customer', 'waitstaff', 'kitchen', 'products', 'tables', 'pos_inventory', 'pos_shifts'].includes(activeTab)) {
       setBusinessMode('pos');
     }
   }, [activeTab]);
@@ -50,6 +50,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
     { id: 'customer', label: 'Menu Pelanggan', desc: 'Self-Order Kiosk', icon: Smartphone },
     { id: 'waitstaff', label: 'Pramuniaga', desc: 'Waitstaff Order', icon: UserCheck },
     { id: 'kitchen', label: 'Struk & Kitchen', desc: 'Dapur (KDS)', icon: Utensils },
+    { id: 'pos_inventory', label: 'Bahan & Resep', desc: 'BOM & Stok Bahan', icon: PackageSearch },
+    { id: 'pos_shifts', label: 'Shift Kasir', desc: 'Modal & Kas Laci', icon: Clock },
     { id: 'products', label: 'Kelola Produk', desc: 'Katalog & Harga', icon: Layers },
     { id: 'tables', label: 'Kelola Meja', desc: 'Denah & Status', icon: Table },
   ];

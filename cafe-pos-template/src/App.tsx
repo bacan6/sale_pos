@@ -8,6 +8,8 @@ import { WaitstaffView } from './views/WaitstaffView';
 import { KitchenTicketView } from './views/KitchenTicketView';
 import { ProductManagementView } from './views/ProductManagementView';
 import { TableManagementView } from './views/TableManagementView';
+import { InventoryRecipeView } from './views/InventoryRecipeView';
+import { ShiftManagementView } from './views/ShiftManagementView';
 import { SaaSBillingView } from './views/SaaSBillingView';
 import { AuthModal } from './views/AuthModal';
 import { RoomRackView } from './views/hotel/RoomRackView';
@@ -217,6 +219,8 @@ export default function App() {
                 {activeTab === 'customer' && <CustomerMenuView devicePreview={devicePreview} />}
                 {activeTab === 'waitstaff' && <WaitstaffView />}
                 {activeTab === 'kitchen' && <KitchenTicketView />}
+                {activeTab === 'pos_inventory' && <InventoryRecipeView />}
+                {activeTab === 'pos_shifts' && <ShiftManagementView />}
                 {activeTab === 'products' && <ProductManagementView />}
                 {activeTab === 'tables' && <TableManagementView />}
                 {activeTab === 'hotel_rack' && (
