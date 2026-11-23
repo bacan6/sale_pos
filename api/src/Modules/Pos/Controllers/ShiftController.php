@@ -238,6 +238,14 @@ class ShiftController {
             $tenantId,
         ]);
 
+        if (TenantContext::hasModule('accounting')) {
+            try {
+                \App\Modules\Accounting\Services\AccountingPostingService::postPosShiftSummary($db, $tenantId, $shiftId);
+            } catch (\Throwable $e) {
+                // Non-fatal auto-posting error
+            }
+        }
+
         Response::success([
             'shift_id' => $shiftId,
             'opened_at' => $shift['opened_at'],

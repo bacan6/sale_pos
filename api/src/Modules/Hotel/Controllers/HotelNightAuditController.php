@@ -133,6 +133,14 @@ class HotelNightAuditController {
             $auditId = (int)$db->lastInsertId();
         }
 
+        if (TenantContext::hasModule('accounting')) {
+            try {
+                \App\Modules\Accounting\Services\AccountingPostingService::postHotelNightAuditSummary($db, $tenantId, $auditId);
+            } catch (\Throwable $e) {
+                // Non-fatal auto-posting error
+            }
+        }
+
         Response::success([
             'audit_id' => $auditId,
             'audit_date' => $auditDate,

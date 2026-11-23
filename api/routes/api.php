@@ -5,3 +5,4 @@ declare(strict_types=1);
 require_once __DIR__ . '/saas.php';
 require_once __DIR__ . '/pos.php';
 require_once __DIR__ . '/hotel.php';
+require_once __DIR__ . '/accounting.php';
