@@ -8,6 +8,7 @@ import {
   Coffee,
   Building2,
   DollarSign,
+  Shirt,
 } from 'lucide-react';
 import { accountingApi } from '../services/api';
 import type { AccountingAccount, AccountingSettings } from '../types/accounting';
@@ -32,6 +33,7 @@ export const AutoPostingSettingsView: React.FC = () => {
   const [cashOverAcc, setCashOverAcc] = useState<string>('');
   const [cashShortAcc, setCashShortAcc] = useState<string>('');
   const [cogsAcc, setCogsAcc] = useState<string>('');
+  const [laundryRevAcc, setLaundryRevAcc] = useState<string>('');
 
   const loadData = async () => {
     setLoading(true);
@@ -54,6 +56,7 @@ export const AutoPostingSettingsView: React.FC = () => {
       setCashOverAcc(st.cash_over_account_id ? String(st.cash_over_account_id) : '');
       setCashShortAcc(st.cash_short_account_id ? String(st.cash_short_account_id) : '');
       setCogsAcc(st.cogs_account_id ? String(st.cogs_account_id) : '');
+      setLaundryRevAcc(st.laundry_revenue_account_id ? String(st.laundry_revenue_account_id) : '');
     } catch (err) {
       console.error(err);
     } finally {
@@ -84,6 +87,7 @@ export const AutoPostingSettingsView: React.FC = () => {
         cash_over_account_id: cashOverAcc ? Number(cashOverAcc) : null,
         cash_short_account_id: cashShortAcc ? Number(cashShortAcc) : null,
         cogs_account_id: cogsAcc ? Number(cogsAcc) : null,
+        laundry_revenue_account_id: laundryRevAcc ? Number(laundryRevAcc) : null,
       });
       setSuccessMsg('Pengaturan pemetaan akun berhasil disimpan');
     } catch (err: any) {
@@ -341,6 +345,32 @@ export const AutoPostingSettingsView: React.FC = () => {
                   ))}
                 </select>
               </div>
+            </div>
+          </div>
+
+          {/* Laundry POS Settings */}
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-neutral-800 text-cyan-400">
+              <Shirt className="w-5 h-5" />
+              <h4 className="text-sm font-bold text-white">Integrasi Operasional Laundry POS</h4>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-neutral-400 mb-1">
+                Akun Pendapatan Jasa Laundry (Laundry Revenue - Credit)
+              </label>
+              <select
+                value={laundryRevAcc}
+                onChange={(e) => setLaundryRevAcc(e.target.value)}
+                className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-xl text-white text-xs focus:outline-none focus:border-cyan-500 cursor-pointer"
+              >
+                <option value="">-- Pilih Akun Pendapatan Laundry --</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    [{a.code}] {a.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

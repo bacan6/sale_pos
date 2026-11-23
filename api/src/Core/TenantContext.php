@@ -32,10 +32,13 @@ class TenantContext {
 
     public static function hasModule(string $module): bool {
         $mods = strtolower(self::modules());
-        if ($mods === 'combo' || $mods === 'all') {
+        $parts = array_map('trim', explode(',', $mods));
+        if (in_array('all', $parts, true)) {
             return true;
         }
-        $parts = array_map('trim', explode(',', $mods));
+        if (in_array('combo', $parts, true) && in_array(strtolower($module), ['pos', 'hotel', 'accounting', 'laundry'], true)) {
+            return true;
+        }
         return in_array(strtolower($module), $parts, true);
     }
 

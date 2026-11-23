@@ -20,8 +20,8 @@ $router->get('/health', function() {
     App\Core\Response::success([
         'uptime' => 'ok',
         'timestamp' => time(),
-        'platform' => 'Multi-Business SaaS Gateway (Hotel PMS, Cafe POS & Back-Office Accounting)',
-        'modules' => ['pos', 'hotel', 'accounting'],
+        'platform' => 'Multi-Business SaaS Gateway (Hotel PMS, Cafe POS, Laundry & Back-Office Accounting)',
+        'modules' => ['pos', 'hotel', 'accounting', 'laundry'],
     ], 'API Gateway Siap Digunakan');
 });
 

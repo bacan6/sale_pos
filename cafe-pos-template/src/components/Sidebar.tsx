@@ -3,13 +3,14 @@ import {
   CreditCard, Smartphone, UserCheck, Utensils, 
   Layers, Table, Coffee, ShieldCheck, LogOut,
   Building2, Grid, Sparkles, Moon, CalendarDays,
-  ShoppingBag, Users, PackageSearch, Clock
+  ShoppingBag, Users, PackageSearch, Clock, Shirt
 } from 'lucide-react';
 import type { TenantInfo, UserInfo } from '../types/auth';
 
 export type ActiveTab = 
   | 'cashier' | 'customer' | 'waitstaff' | 'kitchen' | 'products' | 'tables' | 'pos_inventory' | 'pos_shifts'
   | 'hotel_rack' | 'hotel_timeline' | 'hotel_front_desk' | 'hotel_folio' | 'hotel_services' | 'hotel_guests' | 'hotel_housekeeping' | 'hotel_lost_found' | 'hotel_shifts' | 'hotel_night_audit' | 'hotel_rooms'
+  | 'laundry_cashier' | 'laundry_kanban' | 'laundry_racks' | 'laundry_services'
   | 'saas_billing';
 
 interface SidebarProps {
@@ -24,26 +25,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
   const tenantModules = (tenant?.modules || 'combo').toLowerCase();
   const hasPos = tenantModules === 'combo' || tenantModules === 'pos' || tenantModules === 'all';
   const hasHotel = tenantModules === 'combo' || tenantModules === 'hotel' || tenantModules === 'all';
+  const hasLaundry = tenantModules === 'combo' || tenantModules === 'all' || tenantModules.includes('laundry');
 
-  const [businessMode, setBusinessMode] = useState<'pos' | 'hotel'>(hasHotel && !hasPos ? 'hotel' : 'pos');
+  const [businessMode, setBusinessMode] = useState<'pos' | 'hotel' | 'laundry'>(
+    hasHotel && !hasPos && !hasLaundry ? 'hotel' :
+    hasLaundry && !hasPos && !hasHotel ? 'laundry' : 'pos'
+  );
 
   useEffect(() => {
     if (activeTab.startsWith('hotel_')) {
       setBusinessMode('hotel');
+    } else if (activeTab.startsWith('laundry_')) {
+      setBusinessMode('laundry');
     } else if (['cashier', 'customer', 'waitstaff', 'kitchen', 'products', 'tables', 'pos_inventory', 'pos_shifts'].includes(activeTab)) {
       setBusinessMode('pos');
     }
   }, [activeTab]);
 
   useEffect(() => {
-    if (!hasPos && hasHotel && businessMode !== 'hotel') {
+    if (!hasPos && hasHotel && !hasLaundry && businessMode !== 'hotel') {
       setBusinessMode('hotel');
       setActiveTab('hotel_rack');
+    } else if (!hasPos && !hasHotel && hasLaundry && businessMode !== 'laundry') {
+      setBusinessMode('laundry');
+      setActiveTab('laundry_cashier');
     } else if (!hasHotel && hasPos && businessMode !== 'pos') {
       setBusinessMode('pos');
       setActiveTab('cashier');
     }
-  }, [hasPos, hasHotel]);
+  }, [hasPos, hasHotel, hasLaundry]);
 
   const posNavItems = [
     { id: 'cashier', label: 'Kasir', desc: 'Point of Sale', icon: CreditCard },
@@ -70,7 +80,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
     { id: 'hotel_rooms', label: 'Kelola Kamar', desc: 'Tipe & Master Unit', icon: Layers },
   ];
 
-  const activeNavItems = businessMode === 'hotel' ? hotelNavItems : posNavItems;
+  const laundryNavItems = [
+    { id: 'laundry_cashier', label: 'Kasir & Terima', desc: 'Order Baru & Timbang', icon: CreditCard },
+    { id: 'laundry_kanban', label: 'Pipeline Cucian', desc: 'Cuci, Kering, Setrika', icon: Sparkles },
+    { id: 'laundry_racks', label: 'Rak & Ambil', desc: 'Lokasi Rak & Serah', icon: PackageSearch },
+    { id: 'laundry_services', label: 'Kelola Layanan', desc: 'Tarif Kiloan & Satuan', icon: Layers },
+  ];
+
+  const activeNavItems = businessMode === 'hotel' ? hotelNavItems : businessMode === 'laundry' ? laundryNavItems : posNavItems;
   const tenantStatus = tenant?.status || 'active';
 
   return (
@@ -78,8 +95,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
       <div className="flex flex-col min-h-0 flex-1">
         {/* Brand & Tenant Info */}
         <div className="flex items-center gap-3 px-2 py-3 mb-3 border-b border-neutral-800 shrink-0">
-          <div className="w-10 h-10 rounded-2xl bg-amber-600 flex items-center justify-center font-bold text-white shadow-md shrink-0">
-            {businessMode === 'hotel' ? <Building2 className="w-5 h-5" /> : <Coffee className="w-5 h-5" />}
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white shadow-md shrink-0 ${
+            businessMode === 'hotel' ? 'bg-amber-600' :
+            businessMode === 'laundry' ? 'bg-cyan-600' : 'bg-amber-600'
+          }`}>
+            {businessMode === 'hotel' ? <Building2 className="w-5 h-5" /> :
+             businessMode === 'laundry' ? <Shirt className="w-5 h-5" /> :
+             <Coffee className="w-5 h-5" />}
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="font-black text-xs tracking-tight text-white truncate uppercase">
@@ -101,37 +123,57 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, tenan
           </div>
         </div>
 
-        {/* Business Switcher Segmented Control (Hotel vs POS) */}
-        {hasPos && hasHotel && (
-          <div className="mb-3 p-1 bg-neutral-800/80 rounded-xl flex items-center text-xs font-bold border border-neutral-700/60 shrink-0">
-            <button
-              onClick={() => {
-                setBusinessMode('pos');
-                setActiveTab('cashier');
-              }}
-              className={`flex-1 py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                businessMode === 'pos'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <Coffee className="w-3.5 h-3.5" />
-              <span>Cafe POS</span>
-            </button>
-            <button
-              onClick={() => {
-                setBusinessMode('hotel');
-                setActiveTab('hotel_rack');
-              }}
-              className={`flex-1 py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                businessMode === 'hotel'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Hotel PMS</span>
-            </button>
+        {/* Business Switcher Segmented Control (Cafe vs Hotel vs Laundry) */}
+        {((hasPos ? 1 : 0) + (hasHotel ? 1 : 0) + (hasLaundry ? 1 : 0)) > 1 && (
+          <div className="mb-3 p-1 bg-neutral-800/80 rounded-xl flex items-center text-xs font-bold border border-neutral-700/60 shrink-0 gap-1">
+            {hasPos && (
+              <button
+                onClick={() => {
+                  setBusinessMode('pos');
+                  setActiveTab('cashier');
+                }}
+                className={`flex-1 py-1 px-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                  businessMode === 'pos'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Coffee className="w-3 h-3 shrink-0" />
+                <span className="truncate text-[11px]">Cafe</span>
+              </button>
+            )}
+            {hasHotel && (
+              <button
+                onClick={() => {
+                  setBusinessMode('hotel');
+                  setActiveTab('hotel_rack');
+                }}
+                className={`flex-1 py-1 px-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                  businessMode === 'hotel'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Building2 className="w-3 h-3 shrink-0" />
+                <span className="truncate text-[11px]">Hotel</span>
+              </button>
+            )}
+            {hasLaundry && (
+              <button
+                onClick={() => {
+                  setBusinessMode('laundry');
+                  setActiveTab('laundry_cashier');
+                }}
+                className={`flex-1 py-1 px-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                  businessMode === 'laundry'
+                    ? 'bg-cyan-600 text-white shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Shirt className="w-3 h-3 shrink-0" />
+                <span className="truncate text-[11px]">Laundry</span>
+              </button>
+            )}
           </div>
         )}
 

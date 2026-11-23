@@ -32,7 +32,7 @@ export interface JournalEntry {
   tenant_id: number;
   entry_number: string;
   entry_date: string;
-  reference_type: 'manual' | 'pos_shift_close' | 'hotel_night_audit' | 'hotel_folio' | 'period_closing' | 'adjustment';
+  reference_type: 'manual' | 'pos_shift_close' | 'hotel_night_audit' | 'hotel_folio' | 'period_closing' | 'adjustment' | 'laundry_payment';
   reference_id: number | null;
   notes: string;
   status: 'posted' | 'void';
@@ -157,9 +157,11 @@ export interface AccountingSettings {
   cash_over_account_id: number | null;
   cash_short_account_id: number | null;
   cogs_account_id: number | null;
+  laundry_revenue_account_id: number | null;
   cash_account?: AccountingAccount;
   bank_account?: AccountingAccount;
   pos_revenue_account?: AccountingAccount;
   hotel_room_revenue_account?: AccountingAccount;
+  laundry_revenue_account?: AccountingAccount;
   guest_ledger_account?: AccountingAccount;
 }

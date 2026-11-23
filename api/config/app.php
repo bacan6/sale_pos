@@ -33,11 +33,23 @@ return [
                 'max_devices' => 5,
                 'price' => 350000,
             ],
+            'laundry_solo' => [
+                'name' => 'Laundry POS Solo',
+                'modules' => 'laundry',
+                'max_devices' => 3,
+                'price' => 150000,
+            ],
             'accounting_solo' => [
                 'name' => 'Back-Office Akuntansi Solo',
                 'modules' => 'accounting',
                 'max_devices' => 3,
                 'price' => 200000,
+            ],
+            'laundry_accounting' => [
+                'name' => 'Laundry POS + Akuntansi',
+                'modules' => 'laundry,accounting',
+                'max_devices' => 5,
+                'price' => 280000,
             ],
             'pos_accounting' => [
                 'name' => 'Cafe POS + Akuntansi',

@@ -23,6 +23,10 @@ import { LostFoundView } from './views/hotel/LostFoundView';
 import { ShiftHandoverView } from './views/hotel/ShiftHandoverView';
 import { NightAuditView } from './views/hotel/NightAuditView';
 import { RoomTypeManagementView } from './views/hotel/RoomTypeManagementView';
+import { LaundryCashierView } from './views/laundry/LaundryCashierView';
+import { LaundryKanbanView } from './views/laundry/LaundryKanbanView';
+import { LaundryRackView } from './views/laundry/LaundryRackView';
+import { LaundryServiceManagementView } from './views/laundry/LaundryServiceManagementView';
 import type { HotelRoom } from './types/hotel';
 import { Monitor, Tablet, Smartphone, Coffee, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { authApi, getStoredToken, getStoredTenant, getStoredUser } from './services/api';
@@ -62,6 +66,8 @@ export default function App() {
     const modules = (loggedTenant.modules || 'combo').toLowerCase();
     if (modules === 'hotel') {
       setActiveTab('hotel_rack');
+    } else if (modules === 'laundry') {
+      setActiveTab('laundry_cashier');
     } else {
       setActiveTab('cashier');
     }
@@ -269,6 +275,10 @@ export default function App() {
                 {activeTab === 'hotel_shifts' && <ShiftHandoverView />}
                 {activeTab === 'hotel_night_audit' && <NightAuditView />}
                 {activeTab === 'hotel_rooms' && <RoomTypeManagementView />}
+                {activeTab === 'laundry_cashier' && <LaundryCashierView />}
+                {activeTab === 'laundry_kanban' && <LaundryKanbanView />}
+                {activeTab === 'laundry_racks' && <LaundryRackView />}
+                {activeTab === 'laundry_services' && <LaundryServiceManagementView />}
                 {activeTab === 'saas_billing' && (
                   <SaaSBillingView 
                     tenant={tenant} 

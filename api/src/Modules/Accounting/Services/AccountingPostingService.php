@@ -52,13 +52,14 @@ class AccountingPostingService {
             'cash_over_account_id' => $accounts['7100'] ?? null,
             'cash_short_account_id' => $accounts['6400'] ?? null,
             'cogs_account_id' => $accounts['5100'] ?? null,
+            'laundry_revenue_account_id' => $accounts['4-3000'] ?? null,
         ];
 
         $ins = $db->prepare('INSERT INTO accounting_settings 
             (tenant_id, cash_account_id, bank_account_id, pos_revenue_account_id, hotel_room_revenue_account_id, 
              hotel_service_revenue_account_id, guest_ledger_account_id, service_charge_account_id, 
-             tax_payable_account_id, cash_over_account_id, cash_short_account_id, cogs_account_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+             tax_payable_account_id, cash_over_account_id, cash_short_account_id, cogs_account_id, laundry_revenue_account_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $ins->execute([
             $tenantId,
             $defaultMap['cash_account_id'],
@@ -72,6 +73,7 @@ class AccountingPostingService {
             $defaultMap['cash_over_account_id'],
             $defaultMap['cash_short_account_id'],
             $defaultMap['cogs_account_id'],
+            $defaultMap['laundry_revenue_account_id'],
         ]);
 
         return array_merge(['tenant_id' => $tenantId], $defaultMap);
@@ -358,5 +360,70 @@ class AccountingPostingService {
         $notes = "Ringkasan Night Audit Hotel {$date} (Okupansi: " . ($audit['occupancy_rate'] ?? 0) . "%)";
 
         return self::createJournalEntry($db, $tenantId, $date, 'hotel_night_audit', $auditId, $notes, $items, (int)($audit['audited_by'] ?? null));
+    }
+
+    public static function postLaundryPaymentJournal(
+        PDO $db,
+        int $tenantId,
+        int $orderId,
+        int $paymentId,
+        float $amount,
+        string $paymentMethod,
+        string $orderNumber,
+        ?int $userId = null
+    ): ?array {
+        $settings = self::getSettings($db, $tenantId);
+        $laundryRevAcc = (int)($settings['laundry_revenue_account_id'] ?? 0);
+        if (!$laundryRevAcc) {
+            $accStmt = $db->prepare("SELECT id FROM accounting_accounts WHERE tenant_id = ? AND code = '4-3000' LIMIT 1");
+            $accStmt->execute([$tenantId]);
+            $laundryRevAcc = (int)$accStmt->fetchColumn();
+        }
+
+        if (!$laundryRevAcc) {
+            return null;
+        }
+
+        $debitAccountId = null;
+        if ($paymentMethod === 'cash') {
+            $debitAccountId = (int)($settings['cash_account_id'] ?? 0);
+        } elseif ($paymentMethod === 'room_charge') {
+            $debitAccountId = (int)($settings['guest_ledger_account_id'] ?? 0);
+        } else {
+            $debitAccountId = (int)($settings['bank_account_id'] ?? 0);
+        }
+
+        if (!$debitAccountId) {
+            return null;
+        }
+
+        $items = [
+            [
+                'account_id' => $debitAccountId,
+                'debit' => $amount,
+                'credit' => 0.0,
+                'memo' => "Penerimaan {$paymentMethod} Laundry Order {$orderNumber}",
+            ],
+            [
+                'account_id' => $laundryRevAcc,
+                'debit' => 0.0,
+                'credit' => $amount,
+                'memo' => "Pendapatan Jasa Laundry {$orderNumber}",
+            ],
+        ];
+
+        $date = date('Y-m-d');
+        $notes = "Pendapatan Laundry Order {$orderNumber} ({$paymentMethod})";
+
+        return self::createJournalEntry(
+            $db,
+            $tenantId,
+            $date,
+            'laundry_payment',
+            $paymentId,
+            $notes,
+            $items,
+            $userId
+        );
     }
 }

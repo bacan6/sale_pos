@@ -54,6 +54,7 @@ class AccountingSettingsController {
             'cash_over_account_id',
             'cash_short_account_id',
             'cogs_account_id',
+            'laundry_revenue_account_id',
         ];
 
         $updates = [];
